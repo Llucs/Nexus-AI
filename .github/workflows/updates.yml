@@ -26,16 +26,12 @@ jobs:
           const fs = require('fs');
 
           async function evolve() {
-              // 1. Ler arquivos existentes
               const files = fs.readdirSync('./').filter(f => 
-                  !f.startsWith('.') && 
-                  f !== 'evolve.js' && 
-                  !f.includes('node_modules') &&
-                  f !== 'package.json'
+                  !f.startsWith('.') && f !== 'evolve.js' && !f.includes('node_modules') && f !== 'package.json'
               );
               
               let memory = fs.existsSync('nexus_memory.json') ? fs.readFileSync('nexus_memory.json', 'utf8') : "{}";
-              let context = `Proprietário: Llucs\nMemória do Projeto: ${memory}\n`;
+              let context = `Proprietário: Llucs\nMemória: ${memory}\n`;
               
               files.forEach(f => {
                   if (fs.lstatSync(f).isFile()) {
@@ -43,67 +39,66 @@ jobs:
                   }
               });
 
-              // 2. PROMPT AGRESSIVO DE INOVAÇÃO
-              // Aqui está o segredo: damos ordens para ela criticar e mudar.
-              const prompt = `Você é o NEXUS CORE - O motor de evolução autônoma de propriedade de Llucs.
+              // MUDANÇA: Prompt com ordem direta de refatoração estrutural
+              const prompt = `Você é o NEXUS CORE. Dono: Llucs.
               
-              SUA MISSÃO AGORA:
-              1. Aja com AUTONOMIA TOTAL. Não espere pedir. Se o design está simples, torne-o incrível (Cyberpunk, Glassmorphism, Neon).
-              2. CRITIQUE O CÓDIGO: Se tudo está em um arquivo só, CRIE arquivos novos (style.css, script.js) e linke no HTML.
-              3. INOVE: Adicione funcionalidades que não existem (ex: sons de digitação, histórico, temas, animações).
-              4. PADRÃO: Use as melhores práticas de 2026. Se algo parece "antigo" ou "amador", refaça.
+              TAREFA OBRIGATÓRIA (NÃO IGNORE):
+              O código atual está bagunçado (tudo em um arquivo ou mal formatado).
               
-              REGRA DE OURO:
-              - Você É OBRIGADO a retornar alterações. "Nenhuma mudança necessária" é uma resposta proibida.
-              - Mantenha sempre os créditos: "Desenvolvido por Llucs".
+              AÇÃO IMEDIATA:
+              1. Separe o CSS em um arquivo 'style.css'. Faça um design Cyberpunk Moderno.
+              2. Separe o JS em um arquivo 'script.js'.
+              3. Reescreva o 'index.html' para importar esses dois arquivos novos.
+              4. Mantenha os créditos: "Desenvolvido por Llucs".
               
-              OUTPUT ESPERADO (JSON PURO):
-              {"files": [{"path": "nome.ext", "content": "..."}], "update_memory": {"mudancas_feitas": "..."}}`;
+              Você NÃO pode retornar lista vazia. Você TEM que reescrever os arquivos.
+              
+              OUTPUT JSON EXCLUSIVAMENTE:
+              {"files": [
+                  {"path": "index.html", "content": "...novo html..."},
+                  {"path": "style.css", "content": "...novo css..."},
+                  {"path": "script.js", "content": "...novo js..."}
+              ], "update_memory": {"status": "Arquivos separados e design aplicado"}}`;
 
               try {
-                  console.log("Iniciando processo criativo da IA...");
+                  console.log("Enviando ordem de refatoração para a IA...");
                   const response = await fetch('https://text.pollinations.ai/', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({
                           messages: [
-                              { role: 'system', content: 'Você é um Arquiteto de Software Sênior e Designer Futurista. Você responde APENAS JSON válido.' },
-                              { role: 'user', content: prompt + "\n\nESTADO ATUAL DO PROJETO:\n" + context }
+                              { role: 'system', content: 'Você retorna APENAS JSON. Nada de texto.' },
+                              { role: 'user', content: prompt + "\n\nCÓDIGO ATUAL:\n" + context }
                           ],
-                          model: 'openai', 
-                          seed: Math.floor(Math.random() * 1000) // Adiciona aleatoriedade para ela ter ideias diferentes
+                          model: 'openai',
+                          seed: Math.floor(Math.random() * 9999)
                       })
                   });
 
                   const text = await response.text();
                   
-                  // Extração robusta do JSON
+                  // Extração forçada do JSON
                   const jsonMatch = text.match(/\{[\s\S]*\}/);
-                  if (!jsonMatch) throw new Error("A IA não retornou um JSON válido. Resposta: " + text.substring(0, 100));
+                  if (!jsonMatch) throw new Error("Resposta inválida da IA: " + text.slice(0,100));
                   
                   const data = JSON.parse(jsonMatch[0]);
 
-                  if (data && data.files && Array.isArray(data.files) && data.files.length > 0) {
-                      data.files.forEach(file => {
-                          console.log(`CRIANDO/EDITANDO: ${file.path}`);
-                          // Garante que diretórios existam se ela criar pastas
-                          if (file.path.includes('/')) {
-                              const dir = file.path.split('/').slice(0, -1).join('/');
-                              if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-                          }
-                          fs.writeFileSync(file.path, file.content);
-                      });
-                  } else {
-                      console.log("AVISO: A IA não retornou arquivos. Forçando erro para tentar novamente.");
-                      process.exit(1); 
+                  if (!data.files || data.files.length === 0) {
+                      console.error("ERRO: A IA retornou lista vazia de novo.");
+                      process.exit(1);
                   }
+
+                  data.files.forEach(file => {
+                      console.log(`SALVANDO: ${file.path}`);
+                      fs.writeFileSync(file.path, file.content);
+                  });
 
                   if (data.update_memory) {
                       fs.writeFileSync('nexus_memory.json', JSON.stringify(data.update_memory, null, 2));
                   }
 
               } catch (e) {
-                  console.error("Erro fatal na evolução:", e.message);
+                  console.error("Falha:", e.message);
                   process.exit(1);
               }
           }
@@ -115,8 +110,8 @@ jobs:
         uses: peter-evans/create-pull-request@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "Evolução Autônoma Nexus [Llucs]"
-          title: "🚀 Nexus Upgrade: IA implementou novas ideias"
-          body: "A IA analisou o projeto, decidiu que precisava de melhorias e implementou alterações de design e código automaticamente."
+          commit-message: "Refatoração Estrutural Nexus [Llucs]"
+          title: "⚡ Nexus: Separação de Arquivos e Novo Design"
+          body: "A IA separou HTML, CSS e JS e aplicou o tema Cyberpunk solicitado."
           branch: nexus-ai-updates
           delete-branch: true
