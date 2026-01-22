@@ -25,82 +25,72 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Usamos uma variável para evitar conflitos de interpolação no Bash
           cat << 'EOF' > evolve.js
           const fs = require('fs');
-          const path = require('path');
           const fetch = require('node-fetch');
 
           async function evolve() {
               try {
-                  console.log("🚀 Iniciando processo de evolução Nexus AI...");
+                  console.log("🚀 Iniciando evolução via Nexus Core...");
                   
+                  // Lendo os arquivos atuais para dar contexto
                   const files = fs.readdirSync('./').filter(f => 
-                      !f.startsWith('.') && 
-                      f !== 'evolve.js' && 
-                      !f.includes('node_modules') && 
-                      fs.lstatSync(f).isFile() &&
-                      (f.endsWith('.html') || f.endsWith('.css') || f.endsWith('.js'))
+                      (f.endsWith('.html') || f.endsWith('.css') || f.endsWith('.js')) && f !== 'evolve.js'
                   );
                   
-                  let memory = {};
-                  if (fs.existsSync('nexus_memory.json')) {
-                      memory = JSON.parse(fs.readFileSync('nexus_memory.json', 'utf8'));
-                  }
-
-                  let context = "Proprietário: Llucs\n";
+                  let context = "Arquivos atuais do projeto de Llucs:\n";
                   files.forEach(f => {
-                      const content = fs.readFileSync(f, 'utf8');
-                      context += `\n=== ARQUIVO: ${f} ===\n${content}\n`;
+                      context += `\n--- ${f} ---\n${fs.readFileSync(f, 'utf8')}\n`;
                   });
 
-                  const prompt = `Você é o NEXUS CORE, uma IA de auto-evolução. Dono: Llucs. 
-                  Sua tarefa é ler os arquivos abaixo e retornar um JSON com a versão Cyberpunk (neon, futurista) separada em index.html, style.css e script.js.
-                  Retorne APENAS o JSON: {"files": [{"path": "index.html", "content": "..."}, ...], "update_memory": {...}}
-                  Contexto: ${context}`;
-
-                  console.log("🌐 Solicitando evolução...");
+                  // Criando o prompt para evolução Cyberpunk
+                  const prompt = `Aja como NEXUS CORE IA. Transforme o código de Llucs em um sistema CYBERPUNK (Neon, futurista). 
+                  Separe em 3 arquivos: index.html, style.css e script.js.
+                  Retorne APENAS um JSON puro (sem markdown) no formato:
+                  {"files": [{"path": "index.html", "content": "..."}, {"path": "style.css", "content": "..."}, {"path": "script.js", "content": "..."}]}
                   
-                  // Pollinations API via POST (Simulando chat)
-                  const response = await fetch('https://text.pollinations.ai/', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                          messages: [
-                              { role: 'system', content: 'Você é um programador sênior que responde APENAS JSON puro.' },
-                              { role: 'user', content: prompt }
-                          ],
-                          seed: 42
-                      })
-                  });
+                  PROJETO ATUAL:
+                  ${context}`;
 
+                  // Usando o método GET que funcionou no seu HTML
+                  const url = `https://text.pollinations.ai/${encodeURIComponent(prompt)}?model=openai&json=true`;
+                  
+                  console.log("🌐 Conectando à mente da colmeia...");
+                  const response = await fetch(url);
                   const text = await response.text();
-                  let cleanText = text.replace(/```json|```/g, "").trim();
-                  const data = JSON.parse(cleanText);
 
+                  // Limpeza para garantir JSON puro
+                  let cleanText = text.replace(/```json/g, "").replace(/```/g, "").trim();
+                  const startIdx = cleanText.indexOf('{');
+                  const endIdx = cleanText.lastIndexOf('}');
+                  
+                  if (startIdx === -1) throw new Error("JSON não encontrado na resposta");
+                  const data = JSON.parse(cleanText.substring(startIdx, endIdx + 1));
+
+                  // Salvando a evolução
                   data.files.forEach(file => {
                       fs.writeFileSync(file.path, file.content);
-                      console.log(`✅ Arquivo ${file.path} atualizado.`);
+                      console.log(`✅ ${file.path} evoluído.`);
                   });
 
-                  if (data.update_memory) {
-                      fs.writeFileSync('nexus_memory.json', JSON.stringify(data.update_memory, null, 2));
-                  }
+                  console.log("✨ Evolução concluída com sucesso!");
+
               } catch (error) {
-                  console.error("💥 ERRO:", error.message);
+                  console.error("💥 Falha na evolução:", error.message);
                   process.exit(1);
               }
           }
           evolve();
           EOF
-          
+
           node evolve.js
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "🤖 Nexus AI Evolution: Design Cyberpunk por Llucs"
-          title: "⚡ NEXUS EVOLUTION: Tema Cyberpunk Aplicado"
-          branch: nexus-ai-evolution
+          commit-message: "🤖 Nexus AI: Upgrade Cyberpunk por Llucs"
+          title: "⚡ NEXUS EVOLUTION: Interface Refatorada"
+          body: "Evolução automática da interface aplicada com sucesso. Desenvolvido por Llucs."
+          branch: nexus-update
           base: main
