@@ -24,6 +24,7 @@ jobs:
         run: |
           cat << 'EOF' > evolve.js
           const fs = require('fs');
+          const fetch = require('node-fetch');
 
           async function evolve() {
               const files = fs.readdirSync('./').filter(f => 
@@ -39,26 +40,23 @@ jobs:
                   }
               });
 
-              // MUDANÇA: Prompt com ordem direta de refatoração estrutural
               const prompt = `Você é o NEXUS CORE. Dono: Llucs.
               
-              TAREFA OBRIGATÓRIA (NÃO IGNORE):
-              O código atual está bagunçado (tudo em um arquivo ou mal formatado).
-              
-              AÇÃO IMEDIATA:
-              1. Separe o CSS em um arquivo 'style.css'. Faça um design Cyberpunk Moderno.
-              2. Separe o JS em um arquivo 'script.js'.
-              3. Reescreva o 'index.html' para importar esses dois arquivos novos.
-              4. Mantenha os créditos: "Desenvolvido por Llucs".
-              
-              Você NÃO pode retornar lista vazia. Você TEM que reescrever os arquivos.
-              
-              OUTPUT JSON EXCLUSIVAMENTE:
-              {"files": [
-                  {"path": "index.html", "content": "...novo html..."},
-                  {"path": "style.css", "content": "...novo css..."},
-                  {"path": "script.js", "content": "...novo js..."}
-              ], "update_memory": {"status": "Arquivos separados e design aplicado"}}`;
+TAREFA OBRIGATÓRIA:
+O código atual está bagunçado. Separe CSS, JS e HTML como solicitado.
+
+AÇÃO IMEDIATA:
+1. Separe o CSS em 'style.css' com design Cyberpunk.
+2. Separe o JS em 'script.js'.
+3. Reescreva 'index.html' para importar esses arquivos.
+4. Mantenha os créditos: "Desenvolvido por Llucs".
+
+OUTPUT JSON EXCLUSIVAMENTE:
+{"files": [
+  {"path": "index.html", "content": "...novo html..."},
+  {"path": "style.css", "content": "...novo css..."},
+  {"path": "script.js", "content": "...novo js..."}
+], "update_memory": {"status": "Arquivos separados e design aplicado"}}`;
 
               try {
                   console.log("Enviando ordem de refatoração para a IA...");
@@ -76,15 +74,21 @@ jobs:
                   });
 
                   const text = await response.text();
-                  
-                  // Extração forçada do JSON
-                  const jsonMatch = text.match(/\{[\s\S]*\}/);
-                  if (!jsonMatch) throw new Error("Resposta inválida da IA: " + text.slice(0,100));
-                  
-                  const data = JSON.parse(jsonMatch[0]);
+                  console.log("Resposta bruta da IA:", text);
+
+                  // Tenta parsear diretamente
+                  let data;
+                  try {
+                      data = JSON.parse(text);
+                  } catch (e) {
+                      // Se falhar, tenta extrair JSON com regex (fallback)
+                      const jsonMatch = text.match(/\{[\s\S]*\}/);
+                      if (!jsonMatch) throw new Error("Resposta inválida da IA");
+                      data = JSON.parse(jsonMatch[0]);
+                  }
 
                   if (!data.files || data.files.length === 0) {
-                      console.error("ERRO: A IA retornou lista vazia de novo.");
+                      console.error("ERRO: A IA retornou lista vazia.");
                       process.exit(1);
                   }
 
@@ -102,8 +106,10 @@ jobs:
                   process.exit(1);
               }
           }
+
           evolve();
           EOF
+
           node evolve.js
 
       - name: Create Pull Request
