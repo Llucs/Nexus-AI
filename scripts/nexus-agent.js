@@ -1,29 +1,22 @@
-import fs from "fs";
-import fetch from "node-fetch";
-import { execSync } from "child_process";
+const fs = require("fs");
+const fetch = require("node-fetch");
+const { execSync } = require("child_process");
 
-const instruction = process.env.NEXUS_INSTRUCTION;
+const instruction = process.env.NEXUS_INSTRUCTION || "";
 const analysis = fs.readFileSync(".nexus/project-analysis.txt", "utf8");
 
-let memory = JSON.parse(fs.readFileSync(".nexus/memory.json", "utf8"));
-let checklist = JSON.parse(fs.readFileSync(".nexus/checklist.json", "utf8"));
-
-async function callAI(prompt) {
-  const body = {
-    model: "gemini",
-    messages: [
-      { role: "system", content: "Você é um agente autônomo de código. Gere apenas JSON ou unified diff." },
-      { role: "user", content: prompt }
-    ]
-  };
-
-  const res = await fetch("https://text.pollinations.ai/", {
+function callAI(prompt) {
+  return fetch("https://text.pollinations.ai/", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body)
-  });
-
-  return await res.text();
+    body: JSON.stringify({
+      model: "gemini",
+      messages: [
+        { role: "system", content: "Você é um agente autônomo de código. Gere apenas JSON ou unified diff." },
+        { role: "user", content: prompt }
+      ]
+    })
+  }).then(r => r.text());
 }
 
 async function buildMemoryAndChecklist() {
@@ -53,20 +46,18 @@ ${analysis}
 }
 
 async function processChecklist() {
-  checklist = JSON.parse(fs.readFileSync(".nexus/checklist.json", "utf8"));
+  let checklist = JSON.parse(fs.readFileSync(".nexus/checklist.json", "utf8"));
+  const memory = fs.readFileSync(".nexus/memory.json", "utf8");
 
-  for (const task of checklist.pending) {
-    const mem = fs.readFileSync(".nexus/memory.json", "utf8");
-
+  for (const task of checklist.pending || []) {
     const prompt = `
 MEMÓRIA:
-${mem}
+${memory}
 
 TAREFA:
 ${task}
 
-Gere APENAS unified diff para aplicar a mudança.
-NUNCA reescreva arquivos inteiros.
+Gere APENAS unified diff.
 `;
 
     const patch = await callAI(prompt);
@@ -81,7 +72,8 @@ NUNCA reescreva arquivos inteiros.
   fs.writeFileSync(".nexus/checklist.json", JSON.stringify(checklist, null, 2));
 }
 
-await buildMemoryAndChecklist();
-await processChecklist();
-
-console.log("Nexus AI Agent finalizado.");
+(async () => {
+  await buildMemoryAndChecklist();
+  await processChecklist();
+  console.log("Nexus AI Agent finalizado.");
+})();
