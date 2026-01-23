@@ -1,0 +1,58 @@
+name: Nexus AI Autonomous Agent
+
+on:
+  workflow_dispatch:
+    inputs:
+      instruction:
+        description: "Instrução para a IA"
+        required: true
+
+jobs:
+  nexus-agent:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout completo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar dependências
+        run: |
+          npm install node-fetch@3
+
+      - name: Criar estrutura Nexus
+        run: |
+          mkdir -p .nexus
+          mkdir -p scripts
+
+      - name: Analisar projeto
+        run: node scripts/analyze-project.js
+
+      - name: Rodar Nexus AI Agent
+        env:
+          NEXUS_INSTRUCTION: ${{ github.event.inputs.instruction }}
+        run: node scripts/nexus-agent.js
+
+      - name: Limpar arquivos Nexus
+        run: |
+          rm -rf .nexus
+
+      - name: Criar branch e commit
+        run: |
+          git checkout -b nexus-ai-agent
+          git add .
+          git commit -m "Nexus AI autonomous improvements"
+
+      - name: Criar Pull Request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --title "Nexus AI Autonomous Refactor" \
+            --body "Refatoração automática feita pelo Nexus AI"
