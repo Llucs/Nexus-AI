@@ -43,6 +43,11 @@ jobs:
         run: |
           rm -rf .nexus
 
+      - name: Configurar identidade Git
+        run: |
+          git config --global user.name "nexus-ai-bot"
+          git config --global user.email "nexus-ai-bot@users.noreply.github.com"
+
       - name: Criar branch e commit
         run: |
           git checkout -b nexus-ai-agent
