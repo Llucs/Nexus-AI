@@ -1,9 +1,0 @@
-{
-  "agent_name": "Nexus AI Code Agent",
-  "language": "pt-BR",
-  "patch_only": true,
-  "memory_enabled": true,
-  "checklist_enabled": true,
-  "max_iterations": 25,
-  "cleanup_after": true
-}
