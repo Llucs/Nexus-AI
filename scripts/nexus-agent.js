@@ -59,6 +59,16 @@ function callAI(prompt) {
 }
 
 /* =========================
+   UTIL: LIMPA JSON DA IA
+========================= */
+function sanitizeJson(raw) {
+  return raw
+    .replace(/```json/gi, "")
+    .replace(/```/g, "")
+    .trim();
+}
+
+/* =========================
    PATCH APLICADOR SEGURO
 ========================= */
 function applyPatch(patchText) {
@@ -77,7 +87,7 @@ function applyPatch(patchText) {
 }
 
 /* =========================
-   MEMÓRIA + CHECKLIST (JSON RÍGIDO)
+   MEMÓRIA + CHECKLIST (ROBUSTO)
 ========================= */
 async function buildMemoryAndChecklist() {
   const prompt = `
@@ -100,17 +110,23 @@ PROJECT:
 ${analysis}
 `;
 
-  const out = await callAI(prompt);
+  const raw = await callAI(prompt);
 
-  console.log("\n[NEXUS][DEBUG] RAW AI JSON:");
-  console.log(out);
+  console.log("\n[NEXUS][DEBUG] RAW AI RESPONSE:");
+  console.log(raw);
+
+  const cleaned = sanitizeJson(raw);
+
+  console.log("\n[NEXUS][DEBUG] SANITIZED JSON:");
+  console.log(cleaned);
 
   let parsed;
   try {
-    parsed = JSON.parse(out);
+    parsed = JSON.parse(cleaned);
   } catch (err) {
-    console.error("[NEXUS][FATAL] IA NÃO retornou JSON válido.");
-    fs.writeFileSync(".nexus/ai-invalid-response.txt", out);
+    console.error("[NEXUS][FATAL] IA NÃO retornou JSON válido mesmo após sanitização.");
+    fs.writeFileSync(".nexus/ai-invalid-response.txt", raw);
+    fs.writeFileSync(".nexus/ai-invalid-response-sanitized.txt", cleaned);
     throw err;
   }
 
@@ -121,6 +137,7 @@ ${analysis}
   fs.writeFileSync(".nexus/checklist.json", JSON.stringify(checklist, null, 2));
 
   console.log("[NEXUS] Memory e Checklist gerados.");
+  console.log("[NEXUS] Tarefas pendentes:", checklist.pending.length);
 }
 
 /* =========================
@@ -134,7 +151,7 @@ async function processChecklist() {
   checklist.completed = checklist.completed || [];
 
   if (checklist.pending.length === 0) {
-    console.log("[NEXUS][DEBUG] Checklist vazio. IA NÃO GEROU TAREFAS.");
+    console.log("[NEXUS][DEBUG] Checklist vazio. IA NÃO GEROU TAREFAS EXECUTÁVEIS.");
     return;
   }
 
