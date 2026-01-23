@@ -22,6 +22,20 @@ jobs:
         with:
           node-version: 20
 
+      # 🔥 PREPARA BRANCH DO AGENTE ANTES DE QUALQUER MODIFICAÇÃO
+      - name: Preparar branch do agente (antes da IA)
+        run: |
+          git fetch origin
+
+          if git show-ref --verify --quiet refs/remotes/origin/nexus-ai-agent; then
+            git checkout nexus-ai-agent
+            git reset --hard origin/nexus-ai-agent
+          else
+            git checkout -b nexus-ai-agent
+          fi
+
+          git clean -fdx
+
       - name: Instalar dependências temporárias
         run: |
           npm install node-fetch@2
@@ -40,43 +54,23 @@ jobs:
       - name: Analisar projeto
         run: node scripts/analyze-project.js
 
+      # 🚀 AQUI A IA MODIFICA O REPOSITÓRIO
       - name: Rodar Nexus AI Agent
         env:
           NEXUS_INSTRUCTION: ${{ github.event.inputs.instruction }}
         run: node scripts/nexus-agent.js
 
-      - name: Limpeza de sandbox Nexus
-        run: |
-          rm -rf .nexus
-          rm -rf node_modules
+      # ❌ NÃO APAGAR MAIS WORKSPACE AQUI
 
       - name: Configurar identidade Git
         run: |
           git config --global user.name "nexus-ai-bot"
           git config --global user.email "nexus-ai-bot@users.noreply.github.com"
 
-      # 🔥 ETAPA CRÍTICA — WORKSPACE DETERMINÍSTICO
-      - name: Criar ou sincronizar branch do agente (blindado)
+      # ✅ STAGE COMPLETO (SEM FILTRAR)
+      - name: Stage e commit seguro
         run: |
-          git fetch origin
-
-          # LIMPA TUDO para evitar conflitos
-          git reset --hard
-          git clean -fdx
-
-          if git show-ref --verify --quiet refs/remotes/origin/nexus-ai-agent; then
-            git checkout nexus-ai-agent
-            git reset --hard origin/nexus-ai-agent
-          else
-            git checkout -b nexus-ai-agent
-          fi
-
-      - name: Stage seletivo e commit seguro
-        run: |
-          git reset
-
-          git add -u
-          git add '*.js' '*.ts' '*.json' '*.md' '*.html' '*.css' || true
+          git add -A
 
           if git diff --cached --quiet; then
             echo "Nenhuma mudança relevante para commitar."
