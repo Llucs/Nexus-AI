@@ -21,55 +21,84 @@ function run(cmd) {
 }
 
 /* =========================
-   POLÍTICA DO AGENTE
+   UTIL: LIMPAR CERCA DE CÓDIGO
 ========================= */
-const AGENT_POLICY = `
-RULES (MANDATORY):
-- You HAVE terminal access.
-- ALWAYS run relevant commands (tests, lint, build).
-- NEVER rewrite entire files.
-- ALWAYS generate unified diff patches.
-- ONLY edit required lines.
-- Apply changes using git apply.
-- Prefer minimal, surgical changes.
-- Do NOT replace full file contents.
-`;
-
-/* =========================
-   CHAMADA À IA
-========================= */
-function callAI(prompt) {
-  return fetch("https://text.pollinations.ai/", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "gemini",
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are an autonomous software engineering agent.\n" +
-            AGENT_POLICY +
-            "\nYou MUST output ONLY unified diff patches or strict JSON when requested."
-        },
-        { role: "user", content: prompt }
-      ]
-    })
-  }).then(r => r.text());
-}
-
-/* =========================
-   UTIL: LIMPA JSON DA IA
-========================= */
-function sanitizeJson(raw) {
-  return raw
+function stripCodeFences(text) {
+  return text
     .replace(/```json/gi, "")
     .replace(/```/g, "")
     .trim();
 }
 
 /* =========================
-   PATCH APLICADOR SEGURO
+   UTIL: EXTRAIR UNIFIED DIFF
+========================= */
+function extractUnifiedDiff(text) {
+  const lines = text.split("\n");
+  const diffLines = [];
+  let inDiff = false;
+
+  for (const line of lines) {
+    if (line.startsWith("diff --git") || line.startsWith("--- ")) {
+      inDiff = true;
+    }
+
+    if (inDiff) {
+      diffLines.push(line);
+    }
+  }
+
+  return diffLines.join("\n").trim();
+}
+
+/* =========================
+   POLÍTICA DO AGENTE
+========================= */
+const AGENT_POLICY = `
+RULES (MANDATORY):
+- You HAVE terminal access.
+- ALWAYS generate unified diff patches.
+- NEVER rewrite entire files.
+- ONLY edit required lines.
+- Prefer minimal, surgical changes.
+- NO explanations. NO markdown. NO ads.
+- OUTPUT DIFF OR STRICT JSON ONLY.
+`;
+
+/* =========================
+   CHAMADA À IA (COM RETRY)
+========================= */
+async function callAI(prompt, retries = 3) {
+  for (let i = 1; i <= retries; i++) {
+    try {
+      const res = await fetch("https://text.pollinations.ai/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "gemini",
+          messages: [
+            {
+              role: "system",
+              content:
+                "You are an autonomous software engineering agent.\n" +
+                AGENT_POLICY
+            },
+            { role: "user", content: prompt }
+          ]
+        })
+      });
+
+      const text = await res.text();
+      return text;
+    } catch (err) {
+      console.error(`[NEXUS][WARN] Falha na IA (tentativa ${i})`, err.message);
+      if (i === retries) throw err;
+    }
+  }
+}
+
+/* =========================
+   PATCH APLICADOR
 ========================= */
 function applyPatch(patchText) {
   const patchFile = ".nexus/patch.diff";
@@ -77,22 +106,16 @@ function applyPatch(patchText) {
 
   console.log("\n[NEXUS] Aplicando patch...");
 
-  try {
-    execSync(`git apply ${patchFile}`, { stdio: "inherit" });
-    console.log("[NEXUS] Patch aplicado com sucesso.");
-  } catch (err) {
-    console.error("[NEXUS][ERRO] Falha ao aplicar patch.");
-    throw err;
-  }
+  execSync(`git apply ${patchFile}`, { stdio: "inherit" });
+  console.log("[NEXUS] Patch aplicado com sucesso.");
 }
 
 /* =========================
-   MEMÓRIA + CHECKLIST (ROBUSTO)
+   MEMÓRIA + CHECKLIST (JSON PURO)
 ========================= */
 async function buildMemoryAndChecklist() {
   const prompt = `
-You MUST respond with ONLY valid JSON.
-NO markdown. NO explanations. NO extra text.
+Return ONLY valid JSON. No markdown. No explanations.
 
 Schema:
 
@@ -104,29 +127,30 @@ Schema:
   }
 }
 
-Analyze the project and fill this schema with REAL engineering tasks.
+Rules for checklist:
+- Each task MUST be tiny
+- Each task MUST touch only 1 file
+- Each task MUST be patchable in <50 lines
+- NO big refactors
+- NO conceptual tasks
+- NO audits, NO tests, NO accessibility reviews
 
-PROJECT:
+Project:
 ${analysis}
 `;
 
-  const raw = await callAI(prompt);
+  let raw = await callAI(prompt);
+  raw = stripCodeFences(raw);
 
-  console.log("\n[NEXUS][DEBUG] RAW AI RESPONSE:");
+  console.log("\n[NEXUS][DEBUG] RAW AI JSON:");
   console.log(raw);
-
-  const cleaned = sanitizeJson(raw);
-
-  console.log("\n[NEXUS][DEBUG] SANITIZED JSON:");
-  console.log(cleaned);
 
   let parsed;
   try {
-    parsed = JSON.parse(cleaned);
+    parsed = JSON.parse(raw);
   } catch (err) {
-    console.error("[NEXUS][FATAL] IA NÃO retornou JSON válido mesmo após sanitização.");
+    console.error("[NEXUS][FATAL] IA retornou JSON inválido.");
     fs.writeFileSync(".nexus/ai-invalid-response.txt", raw);
-    fs.writeFileSync(".nexus/ai-invalid-response-sanitized.txt", cleaned);
     throw err;
   }
 
@@ -137,11 +161,10 @@ ${analysis}
   fs.writeFileSync(".nexus/checklist.json", JSON.stringify(checklist, null, 2));
 
   console.log("[NEXUS] Memory e Checklist gerados.");
-  console.log("[NEXUS] Tarefas pendentes:", checklist.pending.length);
 }
 
 /* =========================
-   CHECKLIST EXECUTOR REAL
+   EXECUTOR DE CHECKLIST
 ========================= */
 async function processChecklist() {
   let checklist = JSON.parse(fs.readFileSync(".nexus/checklist.json", "utf8"));
@@ -151,7 +174,7 @@ async function processChecklist() {
   checklist.completed = checklist.completed || [];
 
   if (checklist.pending.length === 0) {
-    console.log("[NEXUS][DEBUG] Checklist vazio. IA NÃO GEROU TAREFAS EXECUTÁVEIS.");
+    console.log("[NEXUS][DEBUG] Checklist vazio. IA não gerou tarefas úteis.");
     return;
   }
 
@@ -172,22 +195,24 @@ ${task}
 WORKFLOW INSTRUCTION:
 ${instruction}
 
-LAST ERROR (if any):
+LAST ERROR:
 ${lastError}
 
 Generate ONLY unified diff.
-- Do NOT rewrite full files.
-- Edit minimal lines.
-- ALWAYS include --- a/ and +++ b/.
+- Minimal edits
+- Include --- a/ and +++ b/
+- No markdown
+- No explanations
 `;
 
-      const patch = await callAI(prompt);
+      const rawPatch = await callAI(prompt);
+      const patch = extractUnifiedDiff(rawPatch);
 
-      console.log("\n[NEXUS][DEBUG] PATCH RAW:");
+      console.log("\n[NEXUS][DEBUG] PATCH FILTRADO:");
       console.log(patch);
 
-      if (!patch.includes("---") || !patch.includes("+++")) {
-        lastError = "Patch inválido (sem unified diff).";
+      if (!patch || (!patch.startsWith("diff --git") && !patch.startsWith("--- "))) {
+        lastError = "Resposta não contém unified diff válido.";
         continue;
       }
 
@@ -200,19 +225,9 @@ Generate ONLY unified diff.
     }
 
     if (!applied) {
-      console.error("[NEXUS][ERRO] Não foi possível aplicar patch para tarefa:", task);
+      console.error("[NEXUS][ERRO] Não foi possível aplicar patch para:", task);
       continue;
     }
-
-    // Validação real
-    const testOutput = run("npm test || true");
-    const lintOutput = run("npm run lint || true");
-    const buildOutput = run("npm run build || true");
-
-    console.log("\n[NEXUS] Resultados:");
-    console.log(testOutput);
-    console.log(lintOutput);
-    console.log(buildOutput);
 
     checklist.completed.push(task);
     checklist.pending = checklist.pending.filter(t => t !== task);
