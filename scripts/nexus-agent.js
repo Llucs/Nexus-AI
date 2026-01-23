@@ -3,6 +3,37 @@ const fetch = require("node-fetch");
 const { execSync } = require("child_process");
 
 const instruction = process.env.NEXUS_INSTRUCTION || "";
+
+/* =========================
+   GARANTIR ARQUIVOS NEXUS
+========================= */
+function ensureNexusFiles() {
+  if (!fs.existsSync(".nexus")) {
+    fs.mkdirSync(".nexus", { recursive: true });
+    console.log("[NEXUS] Pasta .nexus criada.");
+  }
+
+  if (!fs.existsSync(".nexus/memory.json")) {
+    fs.writeFileSync(".nexus/memory.json", "{}");
+    console.log("[NEXUS] memory.json criado.");
+  }
+
+  if (!fs.existsSync(".nexus/checklist.json")) {
+    fs.writeFileSync(
+      ".nexus/checklist.json",
+      JSON.stringify({ pending: [], completed: [] }, null, 2)
+    );
+    console.log("[NEXUS] checklist.json criado.");
+  }
+
+  if (!fs.existsSync(".nexus/project-analysis.txt")) {
+    fs.writeFileSync(".nexus/project-analysis.txt", "");
+    console.log("[NEXUS] project-analysis.txt criado (vazio).");
+  }
+}
+
+ensureNexusFiles();
+
 const analysis = fs.readFileSync(".nexus/project-analysis.txt", "utf8");
 
 /* =========================
@@ -56,7 +87,6 @@ function extractUnifiedDiff(text) {
 ========================= */
 const AGENT_POLICY = `
 RULES (MANDATORY):
-- You HAVE terminal access.
 - ALWAYS generate unified diff patches.
 - NEVER rewrite entire files.
 - ONLY edit required lines.
@@ -106,12 +136,14 @@ function applyPatch(patchText) {
 
   console.log("\n[NEXUS] Aplicando patch...");
 
+  execSync(`git apply --check ${patchFile}`, { stdio: "inherit" });
   execSync(`git apply ${patchFile}`, { stdio: "inherit" });
+
   console.log("[NEXUS] Patch aplicado com sucesso.");
 }
 
 /* =========================
-   MEMÓRIA + CHECKLIST (JSON PURO)
+   MEMÓRIA + CHECKLIST
 ========================= */
 async function buildMemoryAndChecklist() {
   const prompt = `
@@ -127,13 +159,12 @@ Schema:
   }
 }
 
-Rules for checklist:
+Rules:
 - Each task MUST be tiny
 - Each task MUST touch only 1 file
 - Each task MUST be patchable in <50 lines
 - NO big refactors
 - NO conceptual tasks
-- NO audits, NO tests, NO accessibility reviews
 
 Project:
 ${analysis}
