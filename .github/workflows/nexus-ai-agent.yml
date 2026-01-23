@@ -31,6 +31,15 @@ jobs:
           mkdir -p .nexus
           mkdir -p scripts
 
+      - name: Validar scripts
+        run: |
+          if [ ! -f scripts/analyze-project.js ]; then
+            echo "scripts/analyze-project.js não existe" && exit 1
+          fi
+          if [ ! -f scripts/nexus-agent.js ]; then
+            echo "scripts/nexus-agent.js não existe" && exit 1
+          fi
+
       - name: Analisar projeto
         run: node scripts/analyze-project.js
 
@@ -48,11 +57,16 @@ jobs:
           git config --global user.name "nexus-ai-bot"
           git config --global user.email "nexus-ai-bot@users.noreply.github.com"
 
-      - name: Criar branch e commit
+      - name: Criar branch, commit e push
         run: |
           git checkout -b nexus-ai-agent
           git add .
+          if git diff --cached --quiet; then
+            echo "Nenhuma mudança para commitar."
+            exit 0
+          fi
           git commit -m "Nexus AI autonomous improvements"
+          git push origin nexus-ai-agent
 
       - name: Criar Pull Request
         env:
@@ -60,4 +74,5 @@ jobs:
         run: |
           gh pr create \
             --title "Nexus AI Autonomous Refactor" \
-            --body "Refatoração automática feita pelo Nexus AI"
+            --body "Refatoração automática feita pelo Nexus AI" \
+          || echo "PR já existe ou não foi possível criar"
