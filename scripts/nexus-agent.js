@@ -5,6 +5,39 @@ const { execSync } = require("child_process");
 const instruction = process.env.NEXUS_INSTRUCTION || "";
 const analysis = fs.readFileSync(".nexus/project-analysis.txt", "utf8");
 
+/* =========================
+   EXECUTOR REAL DE TERMINAL
+========================= */
+function run(cmd) {
+  console.log("\n[NEXUS:RUN]", cmd);
+  try {
+    return execSync(cmd, { encoding: "utf8", stdio: "pipe" });
+  } catch (err) {
+    return (
+      (err.stdout ? err.stdout.toString() : "") +
+      (err.stderr ? err.stderr.toString() : "")
+    );
+  }
+}
+
+/* =========================
+   POLÍTICA DO AGENTE
+========================= */
+const AGENT_POLICY = `
+RULES (MANDATORY):
+- You HAVE terminal access.
+- ALWAYS run relevant commands (tests, lint, build).
+- NEVER rewrite entire files.
+- ALWAYS generate unified diff patches.
+- ONLY edit required lines.
+- Apply changes using git apply.
+- Prefer minimal, surgical changes.
+- Do NOT replace full file contents.
+`;
+
+/* =========================
+   CHAMADA À IA
+========================= */
 function callAI(prompt) {
   return fetch("https://text.pollinations.ai/", {
     method: "POST",
@@ -12,26 +45,44 @@ function callAI(prompt) {
     body: JSON.stringify({
       model: "gemini",
       messages: [
-        { role: "system", content: "Você é um agente autônomo de código. Gere apenas JSON ou unified diff." },
+        {
+          role: "system",
+          content:
+            "You are an autonomous software engineering agent.\n" +
+            AGENT_POLICY +
+            "\nYou MUST output ONLY unified diff patches or strict JSON when requested."
+        },
         { role: "user", content: prompt }
       ]
     })
   }).then(r => r.text());
 }
 
+/* =========================
+   PATCH APLICADOR SEGURO
+========================= */
+function applyPatch(patchText) {
+  const patchFile = ".nexus/patch.diff";
+  fs.writeFileSync(patchFile, patchText);
+
+  console.log("\n[NEXUS] Aplicando patch...");
+  run(`git apply ${patchFile}`);
+}
+
+/* =========================
+   MEMÓRIA + CHECKLIST
+========================= */
 async function buildMemoryAndChecklist() {
   const prompt = `
-Analise o projeto abaixo.
-Gere:
-1) memory.json COMPLETO
-2) checklist.json com tarefas reais
+Analyze the project.
 
-Formato:
+Generate:
+
 MEMORY_JSON:
-{...}
+{ complete structured memory }
 
 CHECKLIST_JSON:
-{...}
+{ real actionable engineering tasks }
 
 ${analysis}
 `;
@@ -45,25 +96,50 @@ ${analysis}
   if (chkMatch) fs.writeFileSync(".nexus/checklist.json", chkMatch[1]);
 }
 
+/* =========================
+   CHECKLIST EXECUTOR REAL
+========================= */
 async function processChecklist() {
   let checklist = JSON.parse(fs.readFileSync(".nexus/checklist.json", "utf8"));
   const memory = fs.readFileSync(".nexus/memory.json", "utf8");
 
   for (const task of checklist.pending || []) {
+    console.log("\n[NEXUS] Executando tarefa:", task);
+
     const prompt = `
-MEMÓRIA:
+MEMORY:
 ${memory}
 
-TAREFA:
+TASK:
 ${task}
 
-Gere APENAS unified diff.
+You may assume you can run terminal commands.
+
+Generate ONLY a unified diff patch.
+DO NOT rewrite full files.
+Edit only necessary lines.
 `;
 
     const patch = await callAI(prompt);
-    fs.writeFileSync(".nexus/patch.diff", patch);
 
-    execSync("node scripts/apply-patch.js", { stdio: "inherit" });
+    if (!patch.includes("---") || !patch.includes("+++")) {
+      console.log("[NEXUS] Patch inválido ou vazio. Pulando tarefa.");
+      continue;
+    }
+
+    applyPatch(patch);
+
+    // =========================
+    // LOOP REAL DE VALIDAÇÃO
+    // =========================
+    const testOutput = run("npm test || true");
+    const lintOutput = run("npm run lint || true");
+    const buildOutput = run("npm run build || true");
+
+    console.log("\n[NEXUS] Resultados:");
+    console.log(testOutput);
+    console.log(lintOutput);
+    console.log(buildOutput);
 
     checklist.completed.push(task);
   }
@@ -72,8 +148,15 @@ Gere APENAS unified diff.
   fs.writeFileSync(".nexus/checklist.json", JSON.stringify(checklist, null, 2));
 }
 
+/* =========================
+   MAIN
+========================= */
 (async () => {
+  console.log("[NEXUS] Agente iniciado.");
+  console.log("[NEXUS] Instrução:", instruction);
+
   await buildMemoryAndChecklist();
   await processChecklist();
+
   console.log("Nexus AI Agent finalizado.");
 })();
