@@ -55,10 +55,14 @@ jobs:
           git config --global user.name "nexus-ai-bot"
           git config --global user.email "nexus-ai-bot@users.noreply.github.com"
 
-      # 🔥 ETAPA CRÍTICA — SINCRONIZA COM REMOTO
-      - name: Criar ou sincronizar branch do agente
+      # 🔥 ETAPA CRÍTICA — WORKSPACE DETERMINÍSTICO
+      - name: Criar ou sincronizar branch do agente (blindado)
         run: |
           git fetch origin
+
+          # LIMPA TUDO para evitar conflitos
+          git reset --hard
+          git clean -fdx
 
           if git show-ref --verify --quiet refs/remotes/origin/nexus-ai-agent; then
             git checkout nexus-ai-agent
