@@ -13,13 +13,13 @@
         * { box-sizing: border-box; transition: transform 0.2s ease; -webkit-tap-highlight-color: transparent; }
         body, html { margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); color: var(--text-main); height: 100%; overflow: hidden; }
         
-        /* Modal de Nome */
-        #name-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(15px); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px; display: none; }
-        .modal-content { background: var(--surface); border: 1px solid var(--border); padding: 30px; border-radius: 24px; width: 100%; max-width: 400px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
-        .modal-content h2 { margin-top: 0; color: var(--primary); font-size: 1.5rem; }
-        .modal-content input { width: 100%; background: rgba(255,255,255,0.05); border: 1px solid var(--border); padding: 12px 16px; border-radius: 12px; color: white; outline: none; margin: 20px 0; font-size: 1rem; text-align: center; }
-        .modal-content input:focus { border-color: var(--primary); }
-        .modal-btn { background: var(--primary); color: white; border: none; padding: 12px 30px; border-radius: 12px; font-weight: 600; cursor: pointer; width: 100%; }
+        /* Modal de Nome Customizado */
+        #name-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(20px); z-index: 9999; display: none; align-items: center; justify-content: center; padding: 20px; }
+        .modal-content { background: var(--surface); border: 1px solid var(--border); padding: 30px; border-radius: 28px; width: 100%; max-width: 380px; text-align: center; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
+        .modal-content h2 { margin: 0 0 10px 0; color: var(--text-main); font-weight: 600; }
+        .modal-content p { color: var(--text-dim); font-size: 0.9rem; margin-bottom: 25px; }
+        .modal-content input { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid var(--border); padding: 14px; border-radius: 14px; color: white; outline: none; margin-bottom: 20px; font-size: 1rem; text-align: center; }
+        .modal-btn { background: var(--primary); color: white; border: none; padding: 14px; border-radius: 14px; font-weight: 600; cursor: pointer; width: 100%; font-size: 1rem; }
 
         #app { display: flex; flex-direction: column; height: 100dvh; }
         header { padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); background: rgba(5,5,5,0.8); backdrop-filter: blur(10px); z-index: 10; }
@@ -50,21 +50,12 @@
 </head>
 <body>
 
-<div id="name-modal" style="position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(20px); z-index: 9999; display: none; align-items: center; justify-content: center; padding: 20px;">
-    <div style="background: #111; border: 1px solid rgba(255,255,255,0.08); padding: 30px; border-radius: 28px; width: 100%; max-width: 380px; text-align: center;">
-        <h2 style="margin: 0 0 10px 0; color: #fff;">Nexus AI</h2>
-        <p style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 25px;">Como gostaria de ser chamado?</p>
-        <input type="text" id="name-input" placeholder="Seu nome aqui..." style="width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 14px; border-radius: 14px; color: white; outline: none; margin-bottom: 20px; font-size: 1rem; text-align: center;">
-        <button onclick="saveUserName()" style="background: #8b5cf6; color: white; border: none; padding: 14px; border-radius: 14px; font-weight: 600; cursor: pointer; width: 100%; font-size: 1rem;">Confirmar</button>
-    </div>
-</div>
-
 <div id="name-modal">
     <div class="modal-content">
-        <h2>Bem-vindo</h2>
-        <p style="color: var(--text-dim); font-size: 0.9rem;">Como você gostaria de ser chamado?</p>
-        <input type="text" id="name-input" placeholder="Digite seu nome..." maxlength="20">
-        <button class="modal-btn" onclick="saveUserName()">Começar</button>
+        <h2>Nexus AI</h2>
+        <p>Como gostaria de ser chamado?</p>
+        <input type="text" id="name-input" placeholder="Seu nome aqui..." maxlength="20">
+        <button class="modal-btn" onclick="saveUserName()">Confirmar</button>
     </div>
 </div>
 
@@ -106,7 +97,7 @@
         </div>
         <div class="input-wrapper">
             <label class="add-btn">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" x2="12" y1="8" y2="16"></line><line x1="8" x2="16" y1="12" y2="12"></line></svg>
                 <input type="file" id="file-input" hidden accept="image/*" onchange="processImage(this)">
             </label>
             <textarea id="prompt" placeholder="Sua mensagem..." rows="1"></textarea>
@@ -116,37 +107,41 @@
 </div>
 
 <script>
-    const nameModal = document.getElementById('name-modal');
-const nameInput = document.getElementById('name-input');
-let userName = localStorage.getItem('nexus_user_name');
+    const chatWindow = document.getElementById('chat-window'), input = document.getElementById('prompt'), chatList = document.getElementById('chat-list');
+    const nameModal = document.getElementById('name-modal'), nameInput = document.getElementById('name-input');
+    
+    let chats = JSON.parse(localStorage.getItem('nexus_chats') || '[]'), currentChatIndex = null, selectedImg = null;
+    let userName = localStorage.getItem('nexus_user_name');
 
-function initUser() {
-    if (!userName) {
+    // SISTEMA DE NOME
+    function initUser() {
+        if (!userName) {
+            nameModal.style.display = 'flex';
+            nameInput.focus();
+        } else {
+            document.getElementById('display-name').innerText = `Olá, ${userName}`;
+        }
+    }
+
+    function saveUserName() {
+        const val = nameInput.value.trim();
+        if (val) {
+            userName = val;
+            localStorage.setItem('nexus_user_name', val);
+            document.getElementById('display-name').innerText = `Olá, ${val}`;
+            nameModal.style.display = 'none';
+        }
+    }
+
+    function changeName() {
         nameModal.style.display = 'flex';
+        nameInput.value = userName || "";
         nameInput.focus();
-    } else {
-        document.getElementById('display-name').innerText = `Olá, ${userName}`;
     }
-}
 
-function saveUserName() {
-    const val = nameInput.value.trim();
-    if (val) {
-        userName = val;
-        localStorage.setItem('nexus_user_name', val);
-        document.getElementById('display-name').innerText = `Olá, ${val}`;
-        nameModal.style.display = 'none';
-    }
-}
+    initUser();
 
-function changeName() {
-    nameModal.style.display = 'flex';
-    nameInput.value = userName;
-    nameInput.focus();
-}
-
-initUser();
-
+    // UTILITÁRIOS
     function setAccent(c) { document.documentElement.style.setProperty('--primary', c); localStorage.setItem('nexus_theme_color', c); }
     setAccent(localStorage.getItem('nexus_theme_color') || '#8b5cf6');
     function toggleMenu() { document.getElementById('sidebar').classList.toggle('active'); }
@@ -190,7 +185,11 @@ initUser();
     async function sendMessage() {
         const text = input.value.trim();
         if (!text && !selectedImg) return;
-        if (currentChatIndex === null) { chats.push({ title: text.substring(0, 15) || "Imagem", messages: [] }); currentChatIndex = chats.length - 1; }
+        
+        if (currentChatIndex === null) { 
+            chats.push({ title: text.substring(0, 15) || "Imagem", messages: [] }); 
+            currentChatIndex = chats.length - 1; 
+        }
 
         const imgToSend = selectedImg;
         appendMessage(text || "Analise esta foto", true, false, imgToSend);
@@ -204,7 +203,7 @@ initUser();
         try {
             const requestBody = {
                 messages: [
-                    { role: "system", content: `Você é o Nexus AI. O nome do usuário é ${userName}. Sempre que apropriado, chame-o pelo nome. Responda em Português do Brasil. Você é especialista em visão computacional.` },
+                    { role: "system", content: `Você é o Nexus AI. O nome do usuário é ${userName}. Responda em Português do Brasil. Seja direto e útil.` },
                     { role: "user", content: imgToSend ? [{ type: "text", text: text || "O que é isso?" }, { type: "image_url", image_url: { url: imgToSend } }] : text }
                 ],
                 model: "gemini"
@@ -219,19 +218,30 @@ initUser();
     }
 
     function save() { localStorage.setItem('nexus_chats', JSON.stringify(chats)); renderList(); }
+    
     function renderList() {
         chatList.innerHTML = '';
         chats.forEach((c, i) => {
             const d = document.createElement('div'); d.className = 'chat-item'; d.innerText = c.title;
-            d.onclick = () => { currentChatIndex = i; document.getElementById('welcome-msg').style.display = 'none'; chatWindow.innerHTML = ''; chats[i].messages.forEach(m => appendMessage(m.text, m.isUser, false, m.img)); toggleMenu(); };
+            d.onclick = () => { 
+                currentChatIndex = i; 
+                document.getElementById('welcome-msg').style.display = 'none'; 
+                chatWindow.innerHTML = ''; 
+                chats[i].messages.forEach(m => appendMessage(m.text, m.isUser, false, m.img)); 
+                toggleMenu(); 
+            };
             chatList.appendChild(d);
         });
     }
+
     function clearAll() { if(confirm("Apagar tudo?")) { localStorage.clear(); location.reload(); } }
     
+    // EVENTOS
+    nameInput.onkeydown = (e) => { if(e.key === 'Enter') saveUserName(); };
     input.onkeydown = (e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } };
     document.getElementById('sendBtn').onclick = sendMessage;
     document.getElementById('newChatBtn').onclick = () => { currentChatIndex = null; chatWindow.innerHTML = ''; document.getElementById('welcome-msg').style.display = 'block'; };
+    
     renderList();
 </script>
 </body>
