@@ -77,37 +77,50 @@ function applyPatch(patchText) {
 }
 
 /* =========================
-   MEMÓRIA + CHECKLIST
+   MEMÓRIA + CHECKLIST (JSON RÍGIDO)
 ========================= */
 async function buildMemoryAndChecklist() {
   const prompt = `
-Analyze the project.
+You MUST respond with ONLY valid JSON.
+NO markdown. NO explanations. NO extra text.
 
-Generate:
+Schema:
 
-MEMORY_JSON:
-{ complete structured memory }
+{
+  "memory": {},
+  "checklist": {
+    "pending": [],
+    "completed": []
+  }
+}
 
-CHECKLIST_JSON:
-{ real actionable engineering tasks }
+Analyze the project and fill this schema with REAL engineering tasks.
 
+PROJECT:
 ${analysis}
 `;
 
   const out = await callAI(prompt);
 
-  const memMatch = out.match(/MEMORY_JSON:\s*({[\s\S]*?})/);
-  const chkMatch = out.match(/CHECKLIST_JSON:\s*({[\s\S]*?})/);
+  console.log("\n[NEXUS][DEBUG] RAW AI JSON:");
+  console.log(out);
 
-  if (memMatch) fs.writeFileSync(".nexus/memory.json", memMatch[1]);
-  if (chkMatch) fs.writeFileSync(".nexus/checklist.json", chkMatch[1]);
-
-  if (!fs.existsSync(".nexus/checklist.json")) {
-    fs.writeFileSync(
-      ".nexus/checklist.json",
-      JSON.stringify({ pending: [], completed: [] }, null, 2)
-    );
+  let parsed;
+  try {
+    parsed = JSON.parse(out);
+  } catch (err) {
+    console.error("[NEXUS][FATAL] IA NÃO retornou JSON válido.");
+    fs.writeFileSync(".nexus/ai-invalid-response.txt", out);
+    throw err;
   }
+
+  const memory = parsed.memory || {};
+  const checklist = parsed.checklist || { pending: [], completed: [] };
+
+  fs.writeFileSync(".nexus/memory.json", JSON.stringify(memory, null, 2));
+  fs.writeFileSync(".nexus/checklist.json", JSON.stringify(checklist, null, 2));
+
+  console.log("[NEXUS] Memory e Checklist gerados.");
 }
 
 /* =========================
@@ -121,7 +134,7 @@ async function processChecklist() {
   checklist.completed = checklist.completed || [];
 
   if (checklist.pending.length === 0) {
-    console.log("[NEXUS][DEBUG] Checklist vazio. Nada para executar.");
+    console.log("[NEXUS][DEBUG] Checklist vazio. IA NÃO GEROU TAREFAS.");
     return;
   }
 
