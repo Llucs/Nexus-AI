@@ -22,23 +22,20 @@ jobs:
         with:
           node-version: 20
 
-      - name: Instalar dependências
+      - name: Instalar dependências temporárias
         run: |
           npm install node-fetch@2
+          echo "Dependências temporárias instaladas."
 
       - name: Criar estrutura Nexus
         run: |
           mkdir -p .nexus
           mkdir -p scripts
 
-      - name: Validar scripts
+      - name: Validar scripts obrigatórios
         run: |
-          if [ ! -f scripts/analyze-project.js ]; then
-            echo "scripts/analyze-project.js não existe" && exit 1
-          fi
-          if [ ! -f scripts/nexus-agent.js ]; then
-            echo "scripts/nexus-agent.js não existe" && exit 1
-          fi
+          test -f scripts/analyze-project.js || (echo "scripts/analyze-project.js não existe" && exit 1)
+          test -f scripts/nexus-agent.js || (echo "scripts/nexus-agent.js não existe" && exit 1)
 
       - name: Analisar projeto
         run: node scripts/analyze-project.js
@@ -48,21 +45,27 @@ jobs:
           NEXUS_INSTRUCTION: ${{ github.event.inputs.instruction }}
         run: node scripts/nexus-agent.js
 
-      - name: Limpar arquivos Nexus
+      - name: Limpeza de sandbox Nexus
         run: |
           rm -rf .nexus
+          rm -rf node_modules
 
       - name: Configurar identidade Git
         run: |
           git config --global user.name "nexus-ai-bot"
           git config --global user.email "nexus-ai-bot@users.noreply.github.com"
 
-      - name: Criar branch, commit e push
+      - name: Criar ou reutilizar branch
         run: |
-          git checkout -b nexus-ai-agent
+          if git show-ref --verify --quiet refs/heads/nexus-ai-agent; then
+            git checkout nexus-ai-agent
+          else
+            git checkout -b nexus-ai-agent
+          fi
 
-          rm -rf node_modules
-          rm -rf .nexus
+      - name: Stage seletivo e commit seguro
+        run: |
+          git reset
 
           git add -u
           git add '*.js' '*.ts' '*.json' '*.md' '*.html' '*.css' || true
@@ -73,13 +76,17 @@ jobs:
           fi
 
           git commit -m "Nexus AI autonomous improvements"
+
+      - name: Push da branch
+        run: |
           git push origin nexus-ai-agent
 
-      - name: Criar Pull Request
+      - name: Criar Pull Request (se não existir)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh pr create \
-            --title "Nexus AI Autonomous Refactor" \
-            --body "Refatoração automática feita pelo Nexus AI" \
-          || echo "PR já existe ou não foi possível criar"
+          gh pr view nexus-ai-agent >/dev/null 2>&1 && \
+            echo "PR já existe." || \
+            gh pr create \
+              --title "Nexus AI Autonomous Refactor" \
+              --body "Refatoração automática feita pelo Nexus AI"
