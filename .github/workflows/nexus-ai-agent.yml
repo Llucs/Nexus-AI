@@ -46,6 +46,16 @@ jobs:
           mkdir -p .nexus
           mkdir -p scripts
 
+      # ✅ NOVO: Criar checklist.json padrão (FIX DO ERRO)
+      - name: Criar checklist Nexus (evita ENOENT)
+        run: |
+          if [ ! -f .nexus/checklist.json ]; then
+            echo "[]" > .nexus/checklist.json
+            echo "Checklist criado."
+          else
+            echo "Checklist já existe."
+          fi
+
       - name: Validar scripts obrigatórios
         run: |
           test -f scripts/analyze-project.js || (echo "scripts/analyze-project.js não existe" && exit 1)
@@ -59,8 +69,6 @@ jobs:
         env:
           NEXUS_INSTRUCTION: ${{ github.event.inputs.instruction }}
         run: node scripts/nexus-agent.js
-
-      # ❌ NÃO APAGAR MAIS WORKSPACE AQUI
 
       - name: Configurar identidade Git
         run: |
