@@ -60,11 +60,18 @@ jobs:
       - name: Criar branch, commit e push
         run: |
           git checkout -b nexus-ai-agent
-          git add .
+
+          rm -rf node_modules
+          rm -rf .nexus
+
+          git add -u
+          git add '*.js' '*.ts' '*.json' '*.md' '*.html' '*.css' || true
+
           if git diff --cached --quiet; then
-            echo "Nenhuma mudança para commitar."
+            echo "Nenhuma mudança relevante para commitar."
             exit 0
           fi
+
           git commit -m "Nexus AI autonomous improvements"
           git push origin nexus-ai-agent
 
