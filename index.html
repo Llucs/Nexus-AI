@@ -12,6 +12,15 @@
         :root { --primary: #8b5cf6; --bg: #050505; --surface: #111111; --border: rgba(255, 255, 255, 0.08); --text-main: #f8fafc; --text-dim: #94a3b8; }
         * { box-sizing: border-box; transition: transform 0.2s ease; -webkit-tap-highlight-color: transparent; }
         body, html { margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); color: var(--text-main); height: 100%; overflow: hidden; }
+        
+        /* Modal de Nome */
+        #name-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(15px); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px; display: none; }
+        .modal-content { background: var(--surface); border: 1px solid var(--border); padding: 30px; border-radius: 24px; width: 100%; max-width: 400px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+        .modal-content h2 { margin-top: 0; color: var(--primary); font-size: 1.5rem; }
+        .modal-content input { width: 100%; background: rgba(255,255,255,0.05); border: 1px solid var(--border); padding: 12px 16px; border-radius: 12px; color: white; outline: none; margin: 20px 0; font-size: 1rem; text-align: center; }
+        .modal-content input:focus { border-color: var(--primary); }
+        .modal-btn { background: var(--primary); color: white; border: none; padding: 12px 30px; border-radius: 12px; font-weight: 600; cursor: pointer; width: 100%; }
+
         #app { display: flex; flex-direction: column; height: 100dvh; }
         header { padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); background: rgba(5,5,5,0.8); backdrop-filter: blur(10px); z-index: 10; }
         .brand { font-weight: 700; font-size: 1rem; color: var(--primary); letter-spacing: 1px; }
@@ -41,6 +50,24 @@
 </head>
 <body>
 
+<div id="name-modal" style="position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(20px); z-index: 9999; display: none; align-items: center; justify-content: center; padding: 20px;">
+    <div style="background: #111; border: 1px solid rgba(255,255,255,0.08); padding: 30px; border-radius: 28px; width: 100%; max-width: 380px; text-align: center;">
+        <h2 style="margin: 0 0 10px 0; color: #fff;">Nexus AI</h2>
+        <p style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 25px;">Como gostaria de ser chamado?</p>
+        <input type="text" id="name-input" placeholder="Seu nome aqui..." style="width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 14px; border-radius: 14px; color: white; outline: none; margin-bottom: 20px; font-size: 1rem; text-align: center;">
+        <button onclick="saveUserName()" style="background: #8b5cf6; color: white; border: none; padding: 14px; border-radius: 14px; font-weight: 600; cursor: pointer; width: 100%; font-size: 1rem;">Confirmar</button>
+    </div>
+</div>
+
+<div id="name-modal">
+    <div class="modal-content">
+        <h2>Bem-vindo</h2>
+        <p style="color: var(--text-dim); font-size: 0.9rem;">Como você gostaria de ser chamado?</p>
+        <input type="text" id="name-input" placeholder="Digite seu nome..." maxlength="20">
+        <button class="modal-btn" onclick="saveUserName()">Começar</button>
+    </div>
+</div>
+
 <div id="settings-panel">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:30px;">
         <span style="font-weight:600">Configurações</span>
@@ -53,6 +80,7 @@
         <div class="color-opt" style="background:#10b981" onclick="setAccent('#10b981')"></div>
         <div class="color-opt" style="background:#f43f5e" onclick="setAccent('#f43f5e')"></div>
     </div>
+    <button onclick="changeName()" style="width:100%; padding:12px; background:var(--surface); border:1px solid var(--border); color:white; border-radius:10px; cursor:pointer; margin-top:10px;">👤 Alterar Nome</button>
     <div class="credits">Desenvolvido por <b>Llucs</b><br>Nexus AI © 2026</div>
 </div>
 
@@ -65,7 +93,12 @@
 
 <div id="app">
     <header><button class="icon-btn" onclick="toggleMenu()">☰</button><div class="brand">NEXUS AI</div><button class="icon-btn" id="newChatBtn">+</button></header>
-    <div id="chat-window"><div id="welcome-msg" style="text-align:center; margin-top:30%; opacity:0.6"><h3>Olá, Lucas</h3><p>Anexe uma foto ou digite algo.</p></div></div>
+    <div id="chat-window">
+        <div id="welcome-msg" style="text-align:center; margin-top:30%; opacity:0.6">
+            <h3 id="display-name">Olá!</h3>
+            <p>Anexe uma foto ou digite algo.</p>
+        </div>
+    </div>
     <div class="input-container">
         <div id="image-preview" style="display:none; margin-bottom:10px; position:relative; width:60px;">
             <img id="preview-img" style="width:60px; height:60px; border-radius:10px; object-fit:cover; border:2px solid var(--primary);">
@@ -83,29 +116,55 @@
 </div>
 
 <script>
-    const chatWindow = document.getElementById('chat-window'), input = document.getElementById('prompt'), chatList = document.getElementById('chat-list');
-    let chats = JSON.parse(localStorage.getItem('nexus_chats') || '[]'), currentChatIndex = null, selectedImg = null;
+    const nameModal = document.getElementById('name-modal');
+const nameInput = document.getElementById('name-input');
+let userName = localStorage.getItem('nexus_user_name');
+
+function initUser() {
+    if (!userName) {
+        nameModal.style.display = 'flex';
+        nameInput.focus();
+    } else {
+        document.getElementById('display-name').innerText = `Olá, ${userName}`;
+    }
+}
+
+function saveUserName() {
+    const val = nameInput.value.trim();
+    if (val) {
+        userName = val;
+        localStorage.setItem('nexus_user_name', val);
+        document.getElementById('display-name').innerText = `Olá, ${val}`;
+        nameModal.style.display = 'none';
+    }
+}
+
+function changeName() {
+    nameModal.style.display = 'flex';
+    nameInput.value = userName;
+    nameInput.focus();
+}
+
+initUser();
 
     function setAccent(c) { document.documentElement.style.setProperty('--primary', c); localStorage.setItem('nexus_theme_color', c); }
     setAccent(localStorage.getItem('nexus_theme_color') || '#8b5cf6');
     function toggleMenu() { document.getElementById('sidebar').classList.toggle('active'); }
     function toggleSettings() { document.getElementById('sidebar').classList.remove('active'); document.getElementById('settings-panel').classList.toggle('active'); }
 
-    // COMPRESSOR DE IMAGEM (A MÁGICA PARA NÃO TRAVAR)
     function processImage(fileInput) {
-        const file = fileInput.files[0];
-        if (!file) return;
+        const file = fileInput.files[0]; if (!file) return;
         const reader = new FileReader();
         reader.onload = (e) => {
             const img = new Image();
             img.onload = () => {
                 const canvas = document.createElement('canvas');
-                let w = img.width, h = img.height, max = 600; // Reduz para 600px para ser leve
+                let w = img.width, h = img.height, max = 600;
                 if (w > h) { if (w > max) { h *= max / w; w = max; } }
                 else { if (h > max) { w *= max / h; h = max; } }
                 canvas.width = w; canvas.height = h;
                 canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-                selectedImg = canvas.toDataURL('image/jpeg', 0.7); // Comprime em 70%
+                selectedImg = canvas.toDataURL('image/jpeg', 0.7);
                 document.getElementById('preview-img').src = selectedImg;
                 document.getElementById('image-preview').style.display = 'block';
             };
@@ -128,82 +187,7 @@
         chatWindow.scrollTop = chatWindow.scrollHeight;
     }
 
-        async function sendMessage() {
-    const text = input.value.trim();
-    if (!text && !selectedImg) return;
-
-    if (currentChatIndex === null) {
-        chats.push({ title: text.substring(0, 15) || "Imagem", messages: [] });
-        currentChatIndex = chats.length - 1;
-    }
-
-    const imgToSend = selectedImg;
-    appendMessage(text || "Analise esta foto", true, false, imgToSend);
-    chats[currentChatIndex].messages.push({ text: text || "Enviou uma imagem", isUser: true, img: imgToSend });
-    
-    input.value = ''; 
-    cancelImage(); 
-    document.getElementById('welcome-msg').style.display = 'none';
-
-    const skel = document.createElement('div');
-    skel.className = 'message ai-msg';
-    skel.innerHTML = '<div class="skeleton" style="width:100px"></div>';
-    chatWindow.appendChild(skel);
-    chatWindow.scrollTop = chatWindow.scrollHeight;
-
-    try {
-        // PREPARANDO O CORPO DA REQUISIÇÃO (MÉTODO POST)
-        const requestBody = {
-            messages: [
-                {
-                    role: "system",
-                    content: "Você é o Nexus AI. Responda em Português do Brasil. Você é especialista em visão computacional."
-                },
-                {
-                    role: "user",
-                    content: imgToSend 
-                        ? [
-                            { type: "text", text: text || "O que é isso?" },
-                            { type: "image_url", image_url: { url: imgToSend } }
-                          ]
-                        : text
-                }
-            ],
-            model: "gemini", // Usando o Gemini que você pediu
-            jsonMode: false
-        };
-
-        const res = await fetch('https://text.pollinations.ai/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(requestBody)
-        });
-
-        if (!res.ok) throw new Error("Erro na resposta da API");
-
-        const data = await res.text();
-        skel.remove();
-        appendMessage(data, false);
-        chats[currentChatIndex].messages.push({ text: data, isUser: false });
-        save();
-
-    } catch (e) { 
-        skel.innerHTML = "Erro ao conectar com o Gemini via POST."; 
-        console.error("Erro detalhado:", e);
-    }
-}
-
-    function save() { localStorage.setItem('nexus_chats', JSON.stringify(chats)); renderList(); }
-    function renderList() {
-        chatList.innerHTML = '';
-        chats.forEach((c, i) => {
-            const d = document.createElement('div'); d.className = 'chat-item'; d.innerText = c.title;
-            d.onclick = () => { currentChatIndex = i; document.getElementById('welcome-msg').style.display = 'none'; chatWindow.innerHTML = ''; chats[i].messages.forEach(m => appendMessage(m.text, m.isUser, false, m.img)); toggleMenu(); };
-            chatList.appendChild(d);
-        });
-    }
-    function clearAll() { if(confirm("Apagar tudo?")) { localStorage.clear(); location.reload(); } }
-    input.onkeydown = (e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault();     async function sendMessage() {
+    async function sendMessage() {
         const text = input.value.trim();
         if (!text && !selectedImg) return;
         if (currentChatIndex === null) { chats.push({ title: text.substring(0, 15) || "Imagem", messages: [] }); currentChatIndex = chats.length - 1; }
@@ -218,21 +202,34 @@
         chatWindow.scrollTop = chatWindow.scrollHeight;
 
         try {
-            // AJUSTE PARA O GEMINI:
-            // 1. Se houver imagem, adicionamos um prefixo para o Gemini saber que deve olhar o anexo.
-            const promptFinal = imgToSend ? `[USUÁRIO ENVIOU UMA FOTO] Instrução: ${text || "Descreva o que aparece nesta imagem"}` : text;
-            
-            // 2. Trocamos o modelo para 'gemini' e forçamos o Português no system prompt.
-            const res = await fetch(`https://text.pollinations.ai/${encodeURIComponent(promptFinal)}?model=gemini&system=Responda+em+Portugues+do+Brasil.+Voce+tem+acesso+a+visao.`);
-            
+            const requestBody = {
+                messages: [
+                    { role: "system", content: `Você é o Nexus AI. O nome do usuário é ${userName}. Sempre que apropriado, chame-o pelo nome. Responda em Português do Brasil. Você é especialista em visão computacional.` },
+                    { role: "user", content: imgToSend ? [{ type: "text", text: text || "O que é isso?" }, { type: "image_url", image_url: { url: imgToSend } }] : text }
+                ],
+                model: "gemini"
+            };
+            const res = await fetch('https://text.pollinations.ai/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(requestBody) });
             const data = await res.text();
             skel.remove();
             appendMessage(data, false);
             chats[currentChatIndex].messages.push({ text: data, isUser: false });
             save();
-        } catch (e) { skel.innerHTML = "Erro ao conectar com o Gemini."; }
+        } catch (e) { skel.innerHTML = "Erro ao conectar."; }
     }
-    essage(); } };
+
+    function save() { localStorage.setItem('nexus_chats', JSON.stringify(chats)); renderList(); }
+    function renderList() {
+        chatList.innerHTML = '';
+        chats.forEach((c, i) => {
+            const d = document.createElement('div'); d.className = 'chat-item'; d.innerText = c.title;
+            d.onclick = () => { currentChatIndex = i; document.getElementById('welcome-msg').style.display = 'none'; chatWindow.innerHTML = ''; chats[i].messages.forEach(m => appendMessage(m.text, m.isUser, false, m.img)); toggleMenu(); };
+            chatList.appendChild(d);
+        });
+    }
+    function clearAll() { if(confirm("Apagar tudo?")) { localStorage.clear(); location.reload(); } }
+    
+    input.onkeydown = (e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } };
     document.getElementById('sendBtn').onclick = sendMessage;
     document.getElementById('newChatBtn').onclick = () => { currentChatIndex = null; chatWindow.innerHTML = ''; document.getElementById('welcome-msg').style.display = 'block'; };
     renderList();
