@@ -66,7 +66,14 @@ function applyPatch(patchText) {
   fs.writeFileSync(patchFile, patchText);
 
   console.log("\n[NEXUS] Aplicando patch...");
-  run(`git apply ${patchFile}`);
+
+  try {
+    execSync(`git apply ${patchFile}`, { stdio: "inherit" });
+    console.log("[NEXUS] Patch aplicado com sucesso.");
+  } catch (err) {
+    console.error("[NEXUS][ERRO] Falha ao aplicar patch.");
+    throw err;
+  }
 }
 
 /* =========================
@@ -94,6 +101,13 @@ ${analysis}
 
   if (memMatch) fs.writeFileSync(".nexus/memory.json", memMatch[1]);
   if (chkMatch) fs.writeFileSync(".nexus/checklist.json", chkMatch[1]);
+
+  if (!fs.existsSync(".nexus/checklist.json")) {
+    fs.writeFileSync(
+      ".nexus/checklist.json",
+      JSON.stringify({ pending: [], completed: [] }, null, 2)
+    );
+  }
 }
 
 /* =========================
@@ -103,35 +117,64 @@ async function processChecklist() {
   let checklist = JSON.parse(fs.readFileSync(".nexus/checklist.json", "utf8"));
   const memory = fs.readFileSync(".nexus/memory.json", "utf8");
 
-  for (const task of checklist.pending || []) {
+  checklist.pending = checklist.pending || [];
+  checklist.completed = checklist.completed || [];
+
+  if (checklist.pending.length === 0) {
+    console.log("[NEXUS][DEBUG] Checklist vazio. Nada para executar.");
+    return;
+  }
+
+  for (const task of [...checklist.pending]) {
     console.log("\n[NEXUS] Executando tarefa:", task);
 
-    const prompt = `
+    let applied = false;
+    let lastError = "";
+
+    for (let attempt = 1; attempt <= 3 && !applied; attempt++) {
+      const prompt = `
 MEMORY:
 ${memory}
 
 TASK:
 ${task}
 
-You may assume you can run terminal commands.
+WORKFLOW INSTRUCTION:
+${instruction}
 
-Generate ONLY a unified diff patch.
-DO NOT rewrite full files.
-Edit only necessary lines.
+LAST ERROR (if any):
+${lastError}
+
+Generate ONLY unified diff.
+- Do NOT rewrite full files.
+- Edit minimal lines.
+- ALWAYS include --- a/ and +++ b/.
 `;
 
-    const patch = await callAI(prompt);
+      const patch = await callAI(prompt);
 
-    if (!patch.includes("---") || !patch.includes("+++")) {
-      console.log("[NEXUS] Patch inválido ou vazio. Pulando tarefa.");
+      console.log("\n[NEXUS][DEBUG] PATCH RAW:");
+      console.log(patch);
+
+      if (!patch.includes("---") || !patch.includes("+++")) {
+        lastError = "Patch inválido (sem unified diff).";
+        continue;
+      }
+
+      try {
+        applyPatch(patch);
+        applied = true;
+      } catch (err) {
+        lastError = err.message || String(err);
+      }
+    }
+
+    if (!applied) {
+      console.error("[NEXUS][ERRO] Não foi possível aplicar patch para tarefa:", task);
       continue;
     }
 
-    applyPatch(patch);
-
-    // =========================
-    // LOOP REAL DE VALIDAÇÃO
-    // =========================
+    // Validação real
     const testOutput = run("npm test || true");
     const lintOutput = run("npm run lint || true");
     const buildOutput = run("npm run build || true");
@@ -142,9 +185,9 @@ Edit only necessary lines.
     console.log(buildOutput);
 
     checklist.completed.push(task);
+    checklist.pending = checklist.pending.filter(t => t !== task);
   }
 
-  checklist.pending = [];
   fs.writeFileSync(".nexus/checklist.json", JSON.stringify(checklist, null, 2));
 }
 
