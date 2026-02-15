@@ -25,6 +25,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -37,6 +38,9 @@ import com.llucs.nexusai.data.StoredChat
 import com.llucs.nexusai.data.StoredMessage
 import com.llucs.nexusai.net.PollinationsClient
 import com.llucs.nexusai.ui.NexusTheme
+import com.llucs.nexusai.ui.MarkdownTextBlock
+import com.llucs.nexusai.ui.MdBlock
+import com.llucs.nexusai.ui.splitMarkdown
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -331,17 +335,62 @@ private fun ModernMessageBubble(
                 if (isThinking) {
                     ModernThinkingDots()
                 } else {
-                    androidx.compose.material3.Text(
-                        content,
-                        style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
-                        fontSize = 15.sp,
-                        lineHeight = 20.sp,
-                        color = if (isUser) {
-                            androidx.compose.material3.MaterialTheme.colorScheme.onPrimaryContainer
-                        } else {
-                            androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+                    val clipboard = LocalClipboardManager.current
+                    val blocks = remember(content) { splitMarkdown(content) }
+                    val textColor = if (isUser) {
+                        androidx.compose.material3.MaterialTheme.colorScheme.onPrimaryContainer
+                    } else {
+                        androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        for (b in blocks) {
+                            when (b) {
+                                is MdBlock.TextBlock -> {
+                                    MarkdownTextBlock(text = b.text, color = textColor)
+                                }
+                                is MdBlock.CodeBlock -> {
+                                    androidx.compose.material3.Surface(
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = androidx.compose.material3.MaterialTheme.colorScheme.surface,
+                                    ) {
+                                        Column(modifier = Modifier.padding(12.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                androidx.compose.material3.Text(
+                                                    text = b.language?.ifBlank { "Código" } ?: "Código",
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = androidx.compose.material3.MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                                                    modifier = Modifier.weight(1f)
+                                                )
+                                                androidx.compose.material3.IconButton(
+                                                    onClick = { clipboard.setText(AnnotatedString(b.code)) },
+                                                    modifier = Modifier.size(32.dp)
+                                                ) {
+                                                    androidx.compose.material3.Icon(
+                                                        imageVector = Icons.Filled.ContentCopy,
+                                                        contentDescription = "Copiar código",
+                                                        modifier = Modifier.size(16.dp),
+                                                        tint = androidx.compose.material3.MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+                                                    )
+                                                }
+                                            }
+                                            androidx.compose.material3.Text(
+                                                text = b.code,
+                                                fontFamily = FontFamily.Monospace,
+                                                fontSize = 13.sp,
+                                                lineHeight = 18.sp,
+                                                color = androidx.compose.material3.MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f),
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
-                    )
+                    }
                 }
             }
         }
