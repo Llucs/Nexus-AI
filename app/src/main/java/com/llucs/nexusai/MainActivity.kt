@@ -1,4 +1,7 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package com.llucs.nexusai
+import androidx.compose.material3.ExperimentalMaterial3Api
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
