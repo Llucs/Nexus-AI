@@ -29,6 +29,7 @@ android {
     }
 
     kotlinOptions {
+        allWarningsAsErrors = false
     }
 
     kotlin {
@@ -36,6 +37,7 @@ android {
     }
 
     kotlinOptions {
+        allWarningsAsErrors = false
 
         jvmTarget = '17'
     }
