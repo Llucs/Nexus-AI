@@ -22,8 +22,19 @@ jobs:
           java-version: "17"
           cache: gradle
 
-      - name: Make Gradle executable
+      - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
+
+      # Faz o download do Gradle e corrige permissão dos binários extraídos
+      - name: Fix Gradle distribution permissions
+        shell: bash
+        run: |
+          set -e
+          ./gradlew --version --no-daemon || true
+          shopt -s globstar nullglob
+          for f in "$HOME"/.gradle/wrapper/dists/**/gradle-*/bin/*; do
+            chmod +x "$f" || true
+          done
 
       - name: Build Debug APK
         run: ./gradlew assembleDebug --no-daemon
