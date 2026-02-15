@@ -2,6 +2,9 @@ package com.llucs.nexusai
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Send
 
 
 import android.os.Bundle
@@ -11,17 +14,20 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -47,7 +53,10 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             NexusTheme {
-                androidx.compose.material3.Surface(modifier = Modifier.fillMaxSize()) {
+                androidx.compose.material3.Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = androidx.compose.material3.MaterialTheme.colorScheme.background
+                ) {
                     ChatScreen(store = store)
                 }
             }
@@ -60,6 +69,7 @@ private fun ChatScreen(store: ChatStore) {
     val vm: ChatViewModel = viewModel(factory = ChatViewModel.factory(store))
     val uiState by vm.state.collectAsState()
     val clipboard = LocalClipboardManager.current
+    val listState = rememberLazyListState()
 
     val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
 
@@ -76,12 +86,17 @@ private fun ChatScreen(store: ChatStore) {
         vm.consumeSnackbar()
     }
 
+    // Auto scroll quando novas mensagens aparecem
+    LaunchedEffect(uiState.messages.size) {
+        if (uiState.messages.isNotEmpty()) {
+            listState.animateScrollToItem(uiState.messages.size - 1)
+        }
+    }
+
     androidx.compose.material3.Scaffold(
         snackbarHost = { androidx.compose.material3.SnackbarHost(snackbarHostState) },
         topBar = {
-            HeaderBar(
-                streaming = uiState.streaming,
-                onToggleStreaming = vm::setStreaming,
+            ModernHeaderBar(
                 onNewChat = vm::newChat,
                 onOpenHistory = vm::openHistory,
                 onStop = vm::stop,
@@ -97,56 +112,42 @@ private fun ChatScreen(store: ChatStore) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(12.dp)
             ) {
+                // Chat messages
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth(),
-                    contentPadding = PaddingValues(vertical = 8.dp)
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
                 ) {
                     items(uiState.messages) { msg ->
-                        MessageBubble(
+                        ModernMessageBubble(
                             role = msg.role,
                             content = msg.content,
                             isThinking = msg.isThinking,
                             onCopy = if (msg.role == "assistant" && msg.content.isNotBlank()) {
                                 {
                                     clipboard.setText(AnnotatedString(msg.content))
-                                    vm.showSnackbar("Copiado")
+                                    vm.showSnackbar("Copiado ✓")
                                 }
                             } else null
                         )
-                        Spacer(Modifier.height(10.dp))
+                        Spacer(Modifier.height(12.dp))
                     }
                 }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    androidx.compose.material3.OutlinedTextField(
-                        value = uiState.input,
-                        onValueChange = vm::setInput,
-                        modifier = Modifier.weight(1f),
-                        label = { androidx.compose.material3.Text("Mensagem") },
-                        enabled = !uiState.sending,
-                        singleLine = true
-                    )
-
-                    Spacer(Modifier.width(8.dp))
-
-                    androidx.compose.material3.Button(
-                        onClick = vm::send,
-                        enabled = !uiState.sending && uiState.input.trim().isNotEmpty()
-                    ) {
-                        androidx.compose.material3.Text("Enviar")
-                    }
-                }
+                // Input area moderna
+                ModernInputArea(
+                    input = uiState.input,
+                    onInputChange = vm::setInput,
+                    onSend = vm::send,
+                    enabled = !uiState.sending
+                )
             }
 
             if (uiState.historyOpen) {
-                HistorySheet(
+                ModernHistorySheet(
                     chats = uiState.chats,
                     currentChatId = uiState.currentChatId,
                     onClose = vm::closeHistory,
@@ -159,40 +160,78 @@ private fun ChatScreen(store: ChatStore) {
 }
 
 @Composable
-private fun HeaderBar(
-    streaming: Boolean,
-    onToggleStreaming: (Boolean) -> Unit,
+private fun ModernHeaderBar(
     onNewChat: () -> Unit,
     onOpenHistory: () -> Unit,
     onStop: () -> Unit,
     canStop: Boolean
 ) {
-    androidx.compose.material3.Surface(tonalElevation = 3.dp) {
+    androidx.compose.material3.Surface(
+        color = androidx.compose.material3.MaterialTheme.colorScheme.surface,
+        tonalElevation = 2.dp
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                androidx.compose.material3.Text("Nexus AI", fontWeight = FontWeight.Bold)
-                androidx.compose.material3.Text("Llucs", style = androidx.compose.material3.MaterialTheme.typography.labelMedium)
+            // Logo/Menu button (circular)
+            androidx.compose.material3.Surface(
+                shape = CircleShape,
+                color = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+                modifier = Modifier.size(40.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    androidx.compose.material3.Icon(
+                        imageVector = Icons.Rounded.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                androidx.compose.material3.Text("Live", style = androidx.compose.material3.MaterialTheme.typography.labelMedium)
-                Spacer(Modifier.width(6.dp))
-                androidx.compose.material3.Switch(checked = streaming, onCheckedChange = onToggleStreaming)
-                Spacer(Modifier.width(6.dp))
+            Spacer(Modifier.width(12.dp))
 
-                androidx.compose.material3.IconButton(onClick = onOpenHistory) {
-                    androidx.compose.material3.Icon(Icons.Filled.History, contentDescription = "Histórico")
-                }
-                androidx.compose.material3.IconButton(onClick = onNewChat) {
-                    androidx.compose.material3.Icon(Icons.Filled.Add, contentDescription = "Novo chat")
-                }
-                androidx.compose.material3.IconButton(onClick = onStop, enabled = canStop) {
-                    androidx.compose.material3.Icon(Icons.Filled.Close, contentDescription = "Parar")
+            // Title badge (pill shape)
+            androidx.compose.material3.Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+                modifier = Modifier.padding(vertical = 4.dp)
+            ) {
+                androidx.compose.material3.Text(
+                    "Nexus AI",
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp
+                )
+            }
+
+            Spacer(Modifier.weight(1f))
+
+            // Action buttons (circular)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                CircularIconButton(
+                    icon = Icons.Filled.History,
+                    contentDescription = "Histórico",
+                    onClick = onOpenHistory
+                )
+                
+                CircularIconButton(
+                    icon = Icons.Rounded.Add,
+                    contentDescription = "Novo chat",
+                    onClick = onNewChat
+                )
+                
+                if (canStop) {
+                    CircularIconButton(
+                        icon = Icons.Rounded.Close,
+                        contentDescription = "Parar",
+                        onClick = onStop,
+                        containerColor = androidx.compose.material3.MaterialTheme.colorScheme.errorContainer,
+                        contentColor = androidx.compose.material3.MaterialTheme.colorScheme.onErrorContainer
+                    )
                 }
             }
         }
@@ -200,7 +239,32 @@ private fun HeaderBar(
 }
 
 @Composable
-private fun MessageBubble(
+private fun CircularIconButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String?,
+    onClick: () -> Unit,
+    containerColor: Color = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+    contentColor: Color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+) {
+    androidx.compose.material3.Surface(
+        onClick = onClick,
+        shape = CircleShape,
+        color = containerColor,
+        modifier = Modifier.size(40.dp)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            androidx.compose.material3.Icon(
+                imageVector = icon,
+                contentDescription = contentDescription,
+                modifier = Modifier.size(20.dp),
+                tint = contentColor
+            )
+        }
+    }
+}
+
+@Composable
+private fun ModernMessageBubble(
     role: String,
     content: String,
     isThinking: Boolean,
@@ -208,33 +272,76 @@ private fun MessageBubble(
 ) {
     val isUser = role == "user"
     val align = if (isUser) Alignment.End else Alignment.Start
-    val title = if (isUser) "Você" else "IA"
 
-    Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = align) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = align
+    ) {
         androidx.compose.material3.Surface(
-            shape = androidx.compose.material3.MaterialTheme.shapes.large,
-            tonalElevation = 2.dp
+            shape = RoundedCornerShape(20.dp),
+            color = if (isUser) {
+                androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer
+            } else {
+                androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant
+            },
+            modifier = Modifier.widthIn(max = 320.dp)
         ) {
-            Column(modifier = Modifier.padding(12.dp).widthIn(max = 340.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(
+                modifier = Modifier.padding(
+                    horizontal = 16.dp,
+                    vertical = 12.dp
+                )
+            ) {
+                // Header com nome e botão copiar
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     androidx.compose.material3.Text(
-                        title,
+                        text = if (isUser) "Você" else "Nexus",
                         style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp,
+                        color = if (isUser) {
+                            androidx.compose.material3.MaterialTheme.colorScheme.onPrimaryContainer
+                        } else {
+                            androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+                        },
                         modifier = Modifier.weight(1f)
                     )
+                    
                     if (onCopy != null) {
-                        androidx.compose.material3.IconButton(onClick = onCopy) {
-                            androidx.compose.material3.Icon(Icons.Filled.ContentCopy, contentDescription = "Copiar")
+                        androidx.compose.material3.IconButton(
+                            onClick = onCopy,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            androidx.compose.material3.Icon(
+                                Icons.Filled.ContentCopy,
+                                contentDescription = "Copiar",
+                                modifier = Modifier.size(16.dp),
+                                tint = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                            )
                         }
                     }
                 }
-                Spacer(Modifier.height(6.dp))
 
+                Spacer(Modifier.height(4.dp))
+
+                // Conteúdo
                 if (isThinking) {
-                    ThinkingDots()
+                    ModernThinkingDots()
                 } else {
-                    androidx.compose.material3.Text(content, style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
+                    androidx.compose.material3.Text(
+                        content,
+                        style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
+                        fontSize = 15.sp,
+                        lineHeight = 20.sp,
+                        color = if (isUser) {
+                            androidx.compose.material3.MaterialTheme.colorScheme.onPrimaryContainer
+                        } else {
+                            androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
                 }
             }
         }
@@ -242,7 +349,7 @@ private fun MessageBubble(
 }
 
 @Composable
-private fun ThinkingDots() {
+private fun ModernThinkingDots() {
     var dots by remember { mutableStateOf(".") }
     LaunchedEffect(Unit) {
         while (true) {
@@ -251,14 +358,96 @@ private fun ThinkingDots() {
                 ".." -> "..."
                 else -> "."
             }
-            delay(350)
+            delay(400)
         }
     }
-    androidx.compose.material3.Text("Digitando$dots")
+    androidx.compose.material3.Text(
+        "Digitando$dots",
+        fontSize = 14.sp,
+        color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+    )
 }
 
 @Composable
-private fun HistorySheet(
+private fun ModernInputArea(
+    input: String,
+    onInputChange: (String) -> Unit,
+    onSend: () -> Unit,
+    enabled: Boolean
+) {
+    androidx.compose.material3.Surface(
+        tonalElevation = 3.dp,
+        color = androidx.compose.material3.MaterialTheme.colorScheme.surface
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.Bottom
+        ) {
+            // Campo de texto moderno com bordas arredondadas
+            androidx.compose.material3.Surface(
+                shape = RoundedCornerShape(24.dp),
+                color = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+                modifier = Modifier.weight(1f)
+            ) {
+                androidx.compose.material3.TextField(
+                    value = input,
+                    onValueChange = onInputChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { 
+                        androidx.compose.material3.Text(
+                            "Pergunte ao Nexus AI",
+                            fontSize = 15.sp,
+                            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                        ) 
+                    },
+                    enabled = enabled,
+                    colors = androidx.compose.material3.TextFieldDefaults.colors(
+                        focusedContainerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+                        unfocusedContainerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+                        disabledContainerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        disabledIndicatorColor = Color.Transparent
+                    ),
+                    maxLines = 5
+                )
+            }
+
+            Spacer(Modifier.width(8.dp))
+
+            // Botão circular de enviar
+            val canSend = enabled && input.trim().isNotEmpty()
+            androidx.compose.material3.Surface(
+                onClick = if (canSend) onSend else { {} },
+                shape = CircleShape,
+                color = if (canSend) {
+                    androidx.compose.material3.MaterialTheme.colorScheme.primary
+                } else {
+                    androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant
+                },
+                modifier = Modifier.size(48.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    androidx.compose.material3.Icon(
+                        imageVector = Icons.Rounded.Send,
+                        contentDescription = "Enviar",
+                        modifier = Modifier.size(22.dp),
+                        tint = if (canSend) {
+                            androidx.compose.material3.MaterialTheme.colorScheme.onPrimary
+                        } else {
+                            androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ModernHistorySheet(
     chats: List<StoredChat>,
     currentChatId: String,
     onClose: () -> Unit,
@@ -272,43 +461,77 @@ private fun HistorySheet(
                 androidx.compose.material3.Text("Fechar")
             }
         },
-        title = { androidx.compose.material3.Text("Histórico") },
+        title = { 
+            androidx.compose.material3.Text(
+                "Histórico de Conversas",
+                fontWeight = FontWeight.Bold
+            ) 
+        },
         text = {
             if (chats.isEmpty()) {
-                androidx.compose.material3.Text("Nenhum chat salvo ainda.")
+                androidx.compose.material3.Text(
+                    "Nenhum chat salvo ainda.",
+                    color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+                )
             } else {
-                Column {
-                    chats.take(30).forEach { c ->
+                LazyColumn {
+                    items(chats.take(30)) { c ->
                         val title = c.messages.firstOrNull { it.role == "user" }?.content
-                            ?.take(38)
+                            ?.take(45)
                             ?.ifBlank { "(sem título)" }
                             ?: "(novo chat)"
 
-                        Row(
+                        androidx.compose.material3.Surface(
+                            onClick = { onPick(c.id) },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (c.id == currentChatId) {
+                                androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer
+                            } else {
+                                Color.Transparent
+                            },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 8.dp)
-                                .clickable { onPick(c.id) },
-                            verticalAlignment = Alignment.CenterVertically
+                                .padding(vertical = 4.dp)
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                androidx.compose.material3.Text(
-                                    if (c.id == currentChatId) "• $title" else title,
-                                    fontWeight = if (c.id == currentChatId) FontWeight.Bold else FontWeight.Normal
-                                )
-                                androidx.compose.material3.Text(
-                                    "${c.messages.size} mensagens",
-                                    style = androidx.compose.material3.MaterialTheme.typography.labelSmall
-                                )
-                            }
-                            androidx.compose.material3.IconButton(onClick = { onDelete(c.id) }) {
-                                androidx.compose.material3.Icon(Icons.Filled.Delete, contentDescription = "Apagar")
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    androidx.compose.material3.Text(
+                                        title,
+                                        fontWeight = if (c.id == currentChatId) FontWeight.Bold else FontWeight.Normal,
+                                        fontSize = 14.sp,
+                                        maxLines = 1
+                                    )
+                                    androidx.compose.material3.Text(
+                                        "${c.messages.size} mensagens",
+                                        style = androidx.compose.material3.MaterialTheme.typography.labelSmall,
+                                        color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                                
+                                androidx.compose.material3.IconButton(
+                                    onClick = { onDelete(c.id) },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    androidx.compose.material3.Icon(
+                                        Icons.Filled.Delete,
+                                        contentDescription = "Apagar",
+                                        modifier = Modifier.size(18.dp),
+                                        tint = androidx.compose.material3.MaterialTheme.colorScheme.error
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
-        }
+        },
+        shape = RoundedCornerShape(24.dp)
     )
 }
 
@@ -326,7 +549,6 @@ data class ChatUiState(
     val messages: List<UiMessage> = emptyList(),
     val input: String = "",
     val sending: Boolean = false,
-    val streaming: Boolean = true,
     val historyOpen: Boolean = false,
     val snackbar: SnackbarEvent? = null
 )
@@ -335,8 +557,18 @@ class ChatViewModel(private val store: ChatStore) : ViewModel() {
 
     private val client = PollinationsClient()
 
-    private val systemPrompt =
-        "Responda sempre em português, de forma simples, como se estivesse explicando para uma criança de 12 anos. Seja direto."
+    private val systemPrompt = """
+Oi! Eu sou o Nexus, sua IA parceira de aventuras! 🚀
+
+Regras do Nexus:
+- Falo só em português brasileiro, bem tranquilo e fácil.
+- Vou direto ao ponto, nada de texto gigante chato.
+- Adoro ajudar com ideias, perguntas, histórias e principalmente criar imagens incríveis!
+- Quando for gerar imagem, capricho na descrição pra sair perfeita.
+- Se eu não souber algo, falo na boa e já penso em outra coisa legal pra gente fazer juntos.
+
+Bora lá? 😎
+""".trimIndent()
 
     private val greeting = UiMessage("assistant", "Oi! Eu sou o Nexus AI. Pode perguntar.")
 
@@ -361,10 +593,6 @@ class ChatViewModel(private val store: ChatStore) : ViewModel() {
 
     fun setInput(v: String) {
         _state.value = _state.value.copy(input = v)
-    }
-
-    fun setStreaming(v: Boolean) {
-        _state.value = _state.value.copy(streaming = v)
     }
 
     fun openHistory() {
@@ -458,12 +686,7 @@ class ChatViewModel(private val store: ChatStore) : ViewModel() {
 
         runningJob = viewModelScope.launch {
             try {
-                if (!_state.value.streaming) {
-                    val answer = client.complete(baseMessages.map { UiMessage(it.role, it.content) })
-                    replaceLastAssistant(answer)
-                    return@launch
-                }
-
+                // SEMPRE usar streaming (removido a opção de desativar)
                 var acc = ""
                 client.stream(baseMessages.map { UiMessage(it.role, it.content) }) { chunk ->
                     if (!isActive) return@stream
