@@ -377,6 +377,18 @@ private fun BrandDot() {
     }
 }
 
+private fun cleanAssistantText(s: String): String {
+    return s
+        .replace("\\n", "\n")
+        .replace("\r\n", "\n")
+        .replace(Regex("""\*\*(.*?)\*\*"""), "$1")
+        .replace(Regex("""`{1,3}"""), "")
+        .replace(Regex("""^#{1,6}\s*""", RegexOption.MULTILINE), "")
+        .replace(Regex("""\\\(|\\\)"""), "")
+        .replace(Regex("""\\\[|\\\]"""), "")
+        .trim()
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun MessageBubble(
@@ -468,7 +480,8 @@ private fun MessageBubble(
                         dotColor = bubbleContent.copy(alpha = 0.8f)
                     )
                 } else {
-                    val blocks = remember(message.content) { splitMarkdown(message.content) }
+                    val content = if (isUser) message.content else cleanAssistantText(message.content)
+                    val blocks = remember(content) { splitMarkdown(content) }
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         blocks.forEach { b ->
                             MarkdownTextBlock(
