@@ -1,0 +1,44 @@
+<resources>
+    <string name="app_name">Nexus AI</string>
+    <string name="developer_name">Llucs</string>
+
+    <string name="topbar_title">Nexus AI</string>
+    <string name="topbar_subtitle">Seu espaço de IA</string>
+
+    <string name="action_history">Histórico</string>
+    <string name="action_new_chat">Novo chat</string>
+    <string name="action_stop">Parar</string>
+    <string name="action_copy">Copiar</string>
+
+    <string name="label_you">Você</string>
+    <string name="label_assistant">Nexus</string>
+    <string name="label_typing">Digitando</string>
+
+    <string name="input_placeholder">Pergunte ao Nexus AI</string>
+    <string name="input_send">Enviar</string>
+
+    <string name="snack_copied">Copiado ✓</string>
+    <string name="snack_retry">Tentar de novo</string>
+    <string name="generic_error">Erro</string>
+    <string name="assistant_error_template">Erro: %1$s</string>
+    <string name="snack_failed_template">Falhou: %1$s</string>
+
+    <string name="history_title">Histórico de conversas</string>
+    <string name="history_search">Buscar chats</string>
+    <string name="history_empty">Nenhum chat salvo ainda.</string>
+    <string name="history_close">Fechar</string>
+    <string name="history_clear_all">Limpar tudo</string>
+    <string name="history_delete_chat">Apagar chat</string>
+    <string name="history_messages_count">%1$d mensagens</string>
+    <string name="history_new_chat">(novo chat)</string>
+    <string name="history_untitled">(sem título)</string>
+
+    <string name="confirm_clear_title">Apagar todo o histórico?</string>
+    <string name="confirm_clear_text">Isso vai apagar todos os chats salvos neste aparelho.</string>
+    <string name="confirm_cancel">Cancelar</string>
+    <string name="confirm_delete">Apagar</string>
+
+    <string name="msg_interrupted">Interrompido.</string>
+    <string name="chat_greeting">Oi! Eu sou o Nexus AI. Pode perguntar.</string>
+    <string name="system_prompt">Oi! Eu sou o Nexus, sua IA parceira de aventuras! 🚀\n\nRegras do Nexus:\n- Falo só em português brasileiro, bem tranquilo e fácil.\n- Vou direto ao ponto, nada de texto gigante chato.\n- Adoro ajudar com ideias, perguntas, histórias e principalmente criar imagens incríveis!\n- Quando for gerar imagem, capricho na descrição pra sair perfeita.\n- Se eu não souber algo, falo na boa e já penso em outra coisa legal pra gente fazer juntos.\n\nBora lá? 😎</string>
+</resources>
