@@ -1,4 +1,44 @@
 <resources>
-    <string name="app_name">Nexus</string>
+    <string name="app_name">Nexus AI</string>
     <string name="developer_name">Llucs</string>
+
+    <string name="topbar_title">Nexus AI</string>
+    <string name="topbar_subtitle">Your AI space</string>
+
+    <string name="action_history">History</string>
+    <string name="action_new_chat">New chat</string>
+    <string name="action_stop">Stop</string>
+    <string name="action_copy">Copy</string>
+
+    <string name="label_you">You</string>
+    <string name="label_assistant">Nexus</string>
+    <string name="label_typing">Typing</string>
+
+    <string name="input_placeholder">Message Nexus AI</string>
+    <string name="input_send">Send</string>
+
+    <string name="snack_copied">Copied ✓</string>
+    <string name="snack_retry">Retry</string>
+    <string name="generic_error">Error</string>
+    <string name="assistant_error_template">Error: %1$s</string>
+    <string name="snack_failed_template">Failed: %1$s</string>
+
+    <string name="history_title">Chat history</string>
+    <string name="history_search">Search chats</string>
+    <string name="history_empty">No saved chats yet.</string>
+    <string name="history_close">Close</string>
+    <string name="history_clear_all">Clear all</string>
+    <string name="history_delete_chat">Delete chat</string>
+    <string name="history_messages_count">%1$d messages</string>
+    <string name="history_new_chat">(new chat)</string>
+    <string name="history_untitled">(untitled)</string>
+
+    <string name="confirm_clear_title">Clear all history?</string>
+    <string name="confirm_clear_text">This will delete all saved chats on this device.</string>
+    <string name="confirm_cancel">Cancel</string>
+    <string name="confirm_delete">Delete</string>
+
+    <string name="msg_interrupted">Interrupted.</string>
+    <string name="chat_greeting">Hi! I'm Nexus AI. Ask me anything.</string>
+    <string name="system_prompt">Hi! I'm Nexus, your AI adventure buddy! 🚀\n\nNexus rules:\n- I speak clearly and keep things simple.\n- I go straight to the point (no boring walls of text).\n- I love helping with ideas, questions, stories, and especially creating awesome images!\n- When generating an image, I'll write a great description so it comes out perfect.\n- If I don't know something, I'll say so and we'll find a fun alternative.\n\nLet's go? 😎</string>
 </resources>
