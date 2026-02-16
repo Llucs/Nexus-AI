@@ -33,7 +33,7 @@ jobs:
           done
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --no-daemon
+        run: ./gradlew assembleDebug --no-daemon --refresh-dependencies
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
