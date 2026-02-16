@@ -1,7 +1,6 @@
 package com.llucs.nexusai.data
 
 import android.content.Context
-import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -51,18 +50,23 @@ class ChatStore(private val context: Context) {
     }
 
     suspend fun upsertChat(chat: StoredChat) {
+        val hasRealMessage = chat.messages.any { it.content.trim().isNotEmpty() }
 
-    val hasRealMessage = chat.messages.any { it.content.trim().isNotEmpty() }
+        if (!hasRealMessage) {
+            deleteChat(chat.id)
+            return
+        }
 
-    if (!hasRealMessage) {
-        return
+        val chats = loadChats().toMutableList()
+        val idx = chats.indexOfFirst { it.id == chat.id }
+        if (idx >= 0) chats[idx] = chat else chats.add(0, chat)
+        saveChats(chats)
     }
 
-    val chats = loadChats().toMutableList()
-    val idx = chats.indexOfFirst { it.id == chat.id }
-    if (idx >= 0) chats[idx] = chat else chats.add(0, chat)
-    saveChats(chats)
-}
+    suspend fun deleteChat(id: String) {
+        val chats = loadChats().filterNot { it.id == id }
+        saveChats(chats)
+    }
 
     suspend fun clearAll() {
         context.dataStore.edit { p -> p.remove(keyChats) }
