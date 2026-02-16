@@ -31,6 +31,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.selection.SelectionContainer
 
 sealed interface MdBlock {
     data class Heading(val level: Int, val text: String) : MdBlock
@@ -127,6 +130,9 @@ fun MarkdownTextBlock(
     modifier: Modifier = Modifier,
     contentColor: Color = MaterialTheme.colorScheme.onBackground
 ) {
+    val inlineCodeBg = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+    val inlineCodeFg = MaterialTheme.colorScheme.onSurfaceVariant
+
     when (block) {
         is MdBlock.Heading -> {
             val size = when (block.level) {
@@ -155,7 +161,7 @@ fun MarkdownTextBlock(
                     Row(modifier = Modifier.fillMaxWidth()) {
                         Text("• ", color = contentColor)
                         Text(
-                            text = renderInlineMarkdown(item),
+                            text = renderInlineMarkdown(item, inlineCodeBg, inlineCodeFg),
                             color = contentColor,
                             modifier = Modifier.weight(1f)
                         )
@@ -170,7 +176,7 @@ fun MarkdownTextBlock(
 
         is MdBlock.Paragraph -> {
             Text(
-                text = renderInlineMarkdown(block.text),
+                text = renderInlineMarkdown(block.text, inlineCodeBg, inlineCodeFg),
                 color = contentColor,
                 modifier = modifier.fillMaxWidth(),
                 overflow = TextOverflow.Clip
@@ -209,14 +215,21 @@ private fun CodeBlock(code: String, lang: String?, modifier: Modifier = Modifier
                 )
             }
         }
-        Box(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                text = code,
-                fontFamily = FontFamily.Monospace,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 13.sp,
-                modifier = Modifier.fillMaxWidth()
-            )
+        val scroll = rememberScrollState()
+        SelectionContainer {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(scroll)
+            ) {
+                Text(
+                    text = code,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 13.sp,
+                    modifier = Modifier.padding(end = 8.dp)
+                )
+            }
         }
     }
 }
@@ -226,7 +239,7 @@ private fun copyToClipboard(ctx: Context, text: String) {
     cm.setPrimaryClip(ClipData.newPlainText("code", text))
 }
 
-private fun renderInlineMarkdown(src: String): AnnotatedString {
+private fun renderInlineMarkdown(src: String, inlineCodeBg: Color, inlineCodeFg: Color): AnnotatedString {
     // Handles: **bold**, *italic*, `code`
     val s = src
     val b = AnnotatedString.Builder()
@@ -243,7 +256,8 @@ private fun renderInlineMarkdown(src: String): AnnotatedString {
                 b.addStyle(
                     SpanStyle(
                         fontFamily = FontFamily.Monospace,
-                        background = Color(0x33000000)
+                        background = inlineCodeBg,
+                        color = inlineCodeFg
                     ),
                     start,
                     b.length
