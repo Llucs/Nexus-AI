@@ -90,7 +90,7 @@ fun splitMarkdown(input: String): List<MdBlock> {
                 val tl = lines[i].trimEnd()
                 if (tl.isBlank()) break
                 if (!isTableLine(tl)) break
-                buf.append(\'\n\').append(tl)
+                buf.append("\n").append(tl)
                 i++
             }
             out.add(MdBlock.CodeFence(null, buf.toString()))
