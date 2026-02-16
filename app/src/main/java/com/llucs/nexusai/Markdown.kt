@@ -28,6 +28,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -77,7 +78,10 @@ fun splitMarkdown(input: String): List<MdBlock> {
         val trimmed = line.trimStart()
 
         val tline = trimmed.trim()
-        if (tline == "---" || tline == "***" || tline == "___") {
+        val isHr = tline.matches(Regex("""^(-\s*){3,}$""")) ||
+            tline.matches(Regex("""^(_\s*){3,}$""")) ||
+            tline.matches(Regex("""^(\*\s*){3,}$"""))
+        if (isHr) {
             out.add(MdBlock.Hr)
             i++
             continue
@@ -304,7 +308,20 @@ private fun renderInlineMarkdown(src: String, inlineCodeBg: Color, inlineCodeFg:
             }
         }
 
-        // Bold (**text**)
+        // Strikethrough (~~text~~)
+        if (i + 1 < s.length && s[i] == '~' && s[i + 1] == '~') {
+            val j = s.indexOf("~~", i + 2)
+            if (j != -1) {
+                val inside = s.substring(i + 2, j)
+                val start = b.length
+                b.append(inside)
+                b.addStyle(SpanStyle(textDecoration = TextDecoration.LineThrough), start, b.length)
+                i = j + 2
+                continue
+            }
+        }
+
+        // Bold (**text** or __text__)
         if (i + 1 < s.length && s[i] == '*' && s[i + 1] == '*') {
             val j = s.indexOf("**", i + 2)
             if (j != -1) {
@@ -316,10 +333,32 @@ private fun renderInlineMarkdown(src: String, inlineCodeBg: Color, inlineCodeFg:
                 continue
             }
         }
+        if (i + 1 < s.length && s[i] == '_' && s[i + 1] == '_') {
+            val j = s.indexOf("__", i + 2)
+            if (j != -1) {
+                val inside = s.substring(i + 2, j)
+                val start = b.length
+                b.append(inside)
+                b.addStyle(SpanStyle(fontWeight = FontWeight.SemiBold), start, b.length)
+                i = j + 2
+                continue
+            }
+        }
 
-        // Italic (*text*)
+        // Italic (*text* or _text_)
         if (s[i] == '*') {
             val j = s.indexOf('*', i + 1)
+            if (j != -1) {
+                val inside = s.substring(i + 1, j)
+                val start = b.length
+                b.append(inside)
+                b.addStyle(SpanStyle(fontStyle = FontStyle.Italic), start, b.length)
+                i = j + 1
+                continue
+            }
+        }
+        if (s[i] == '_') {
+            val j = s.indexOf('_', i + 1)
             if (j != -1) {
                 val inside = s.substring(i + 1, j)
                 val start = b.length
