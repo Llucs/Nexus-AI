@@ -44,7 +44,6 @@ class MainActivity : ComponentActivity() {
                 var userName by rememberSaveable { mutableStateOf<String?>(null) }
                 var languageCode by rememberSaveable { mutableStateOf<String?>(null) }
 
-                var showNameDialog by rememberSaveable { mutableStateOf(false) }
                 var nameInput by rememberSaveable { mutableStateOf("") }
 
                 fun normalizeLanguage(code: String?): String {
@@ -75,10 +74,9 @@ class MainActivity : ComponentActivity() {
                     nameInput = savedName.orEmpty()
 
                     applyLanguage(savedLang)
-                    if (savedName.isNullOrBlank()) showNameDialog = true
                 }
 
-                if (showNameDialog) {
+                if (userName.isNullOrBlank()) {
                     val lang = normalizeLanguage(languageCode)
                     AlertDialog(
                         onDismissRequest = { },
@@ -100,7 +98,6 @@ class MainActivity : ComponentActivity() {
                                     scope.launch {
                                         prefs.setUserName(fixed)
                                         userName = fixed
-                                        showNameDialog = false
                                     }
                                 }
                             ) { Text(if (lang == "pt") "Salvar" else "Save") }
@@ -116,7 +113,10 @@ class MainActivity : ComponentActivity() {
                         languageCode = lang,
                         onEditName = {
                             nameInput = userName.orEmpty()
-                            showNameDialog = true
+                            scope.launch {
+                                prefs.setUserName("")
+                                userName = ""
+                            }
                         },
                         onChangeLanguage = { newCode ->
                             val fixed = normalizeLanguage(newCode)
