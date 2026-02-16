@@ -71,6 +71,7 @@ private fun ChatScreen(store: ChatStore) {
     val uiState by vm.state.collectAsState()
     val listState = rememberLazyListState()
 
+    val clipboard = LocalClipboardManager.current
     val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
 
     LaunchedEffect(uiState.snackbar) {
