@@ -377,6 +377,7 @@ private fun BrandDot() {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun MessageBubble(
     message: UiMessage,
