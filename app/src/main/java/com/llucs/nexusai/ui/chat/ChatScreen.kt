@@ -946,3 +946,18 @@ private fun getAppVersionName(context: Context): String {
         "?"
     }
 }
+
+private fun openUrlSafely(context: Context, url: String) {
+    val u = url.trim()
+    if (u.isBlank()) return
+
+    val uri = runCatching { Uri.parse(u) }.getOrNull() ?: return
+
+    val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+
+    runCatching {
+        context.startActivity(intent)
+    }
+}
