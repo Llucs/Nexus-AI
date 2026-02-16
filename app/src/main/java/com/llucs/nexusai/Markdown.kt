@@ -40,13 +40,17 @@ sealed interface MdBlock {
     data class Paragraph(val text: String) : MdBlock
     data class BulletList(val items: List<String>) : MdBlock
     data class CodeFence(val lang: String?, val code: String) : MdBlock
+    data object Hr : MdBlock
 }
 
 fun splitMarkdown(input: String): List<MdBlock> {
     val text = input.replace("\r\n", "\n")
+    	.replace(Regex("""(?<=\S)(#{1,6})"""), "\n$1")
     val lines = text.split("\n")
 
     val out = ArrayList<MdBlock>(maxOf(4, lines.size / 2))
+
+    fun isTableLine(s: String): Boolean = s.contains('|') && s.count { it == '|' } >= 2
 
     var i = 0
     while (i < lines.size) {
@@ -71,6 +75,27 @@ fun splitMarkdown(input: String): List<MdBlock> {
 
         // Heading (#, ##, ###)
         val trimmed = line.trimStart()
+
+        val tline = trimmed.trim()
+        if (tline == "---" || tline == "***" || tline == "___") {
+            out.add(MdBlock.Hr)
+            i++
+            continue
+        }
+
+        if (isTableLine(trimmed)) {
+            val buf = StringBuilder(trimmed.trimEnd())
+            i++
+            while (i < lines.size) {
+                val tl = lines[i].trimEnd()
+                if (tl.isBlank()) break
+                if (!isTableLine(tl)) break
+                buf.append(\'\n\').append(tl)
+                i++
+            }
+            out.add(MdBlock.CodeFence(null, buf.toString()))
+            continue
+        }
         if (trimmed.startsWith("#")) {
             val level = trimmed.takeWhile { it == '#' }.length
             if (level in 1..6 && trimmed.length > level && trimmed[level] == ' ') {
@@ -182,6 +207,17 @@ fun MarkdownTextBlock(
                 overflow = TextOverflow.Clip
             )
         }
+
+
+        is MdBlock.Hr -> {
+            androidx.compose.material3.HorizontalDivider(
+                modifier = modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 10.dp),
+                thickness = 2.dp,
+                color = contentColor.copy(alpha = 0.25f)
+            )
+        }
     }
 }
 
@@ -242,6 +278,7 @@ private fun copyToClipboard(ctx: Context, text: String) {
 private fun renderInlineMarkdown(src: String, inlineCodeBg: Color, inlineCodeFg: Color): AnnotatedString {
     // Handles: **bold**, *italic*, `code`
     val s = src
+        .replace(Regex("""([:;,.!?])([A-Za-zÀ-ÿ])"""), "$1 $2")
     val b = AnnotatedString.Builder()
 
     var i = 0
