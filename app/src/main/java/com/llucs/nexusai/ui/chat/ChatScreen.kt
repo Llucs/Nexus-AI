@@ -1,4 +1,14 @@
 package com.llucs.nexusai.ui.chat
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.RadioButton
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.res.painterResource
+import com.llucs.nexusai.BuildConfig
+
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.animation.AnimatedVisibility
@@ -97,38 +107,61 @@ import com.llucs.nexusai.splitMarkdown
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
-fun ChatScreen(store: ChatStore) {
+fun ChatScreen(
+    store: ChatStore,
+    userName: String,
+    languageCode: String,
+    onEditName: () -> Unit,
+    onChangeLanguage: (String) -> Unit,
+    sourceUrl: String = "https://github.com/Llucs/Nexus-AI"
+) {
     val context = LocalContext.current
 
-    val locale = java.util.Locale.getDefault().language.lowercase()
+    val locale = languageCode.lowercase()
+
+    var showSettings by rememberSaveable { mutableStateOf(false) }
+    val navLetter = userName.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "N"
+val displayName = userName.trim().ifBlank { if (locale == "pt") "você" else "there" }
+
 val systemPrompt = if (locale == "pt") {
     """
-    Oi! Eu sou o Nexus, seu parceiro de aventuras com IA!
+    Oi! Eu sou o Nexus, seu parceiro de aventuras com IA.
 
     Regras do Nexus:
-    - Eu falo de forma clara e simples.
-    - Eu vou direto ao ponto (sem textão chato).
-    - Eu adoro ajudar com ideias, perguntas, histórias e principalmente criar imagens incríveis!
-    - Quando eu gerar uma imagem, eu vou escrever uma descrição bem caprichada pra ela sair perfeita.
+    - Fale claro e simples.
+    - Vá direto ao ponto.
+    - Use Markdown bem formatado quando ajudar:
+      - Use linhas em branco entre parágrafos.
+      - Em listas, coloque cada item em uma linha.
+      - Para separador, use uma linha só com: ---
+      - Para código, use blocos com ``` e linguagem (se souber).
     - Se eu não souber algo, eu vou falar e a gente encontra uma alternativa.
 
-    Bora?
+    Chame o usuário de: ${displayName}.
     """.trimIndent()
 } else {
     """
-    Hi! I'm Nexus, your AI adventure buddy!
+    Hi! I'm Nexus, your AI adventure buddy.
 
     Nexus rules:
-    - I speak clearly and keep things simple.
-    - I go straight to the point (no boring walls of text).
-    - I love helping with ideas, questions, stories, and especially creating awesome images!
-    - When generating an image, I'll write a great description so it comes out perfect.
-    - If I don't know something, I'll say so and we'll find a fun alternative.
+    - Speak clearly and keep things simple.
+    - Go straight to the point.
+    - Use well-formatted Markdown when helpful:
+      - Leave blank lines between paragraphs.
+      - In lists, keep one item per line.
+      - For a divider, use a line containing only: ---
+      - For code, use fenced blocks with ``` and language (if known).
+    - If I don't know something, I'll say so and we’ll find an alternative.
 
-    Let's go?
+    Call the user: ${displayName}.
     """.trimIndent()
 }
-val greeting = if (locale == "pt") "Oi! Eu sou o Nexus AI. Pode perguntar qualquer coisa." else "Hi! I'm Nexus AI. Ask me anything."
+
+val greeting = if (locale == "pt") {
+    if (userName.isBlank()) "Oi! Eu sou o Nexus AI. Pode perguntar qualquer coisa." else "Oi, ${userName.trim()}! Eu sou o Nexus AI. Pode perguntar qualquer coisa."
+} else {
+    if (userName.isBlank()) "Hi! I'm Nexus AI. Ask me anything." else "Hi, ${userName.trim()}! I'm Nexus AI. Ask me anything."
+}
 
     val interrupted = stringResource(R.string.msg_interrupted)
     val genericError = stringResource(R.string.generic_error)
@@ -202,6 +235,8 @@ val greeting = if (locale == "pt") "Oi! Eu sou o Nexus AI. Pode perguntar qualqu
         topBar = {
             NexusTopBar(
                 sending = uiState.sending,
+                navLetter = navLetter,
+                onOpenSettings = { showSettings = true },
                 onHistory = vm::openHistory,
                 onNewChat = vm::newChat,
                 onStop = vm::stop,
@@ -289,12 +324,31 @@ val greeting = if (locale == "pt") "Oi! Eu sou o Nexus AI. Pode perguntar qualqu
             }
         }
     }
+if (showSettings) {
+    SettingsBottomSheet(
+        userName = userName,
+        languageCode = locale,
+        onEditName = {
+            showSettings = false
+            onEditName()
+        },
+        onChangeLanguage = { code ->
+            showSettings = false
+            onChangeLanguage(code)
+        },
+        sourceUrl = sourceUrl,
+        onDismiss = { showSettings = false }
+    )
+}
+
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun NexusTopBar(
     sending: Boolean,
+    navLetter: String,
+    onOpenSettings: () -> Unit,
     onHistory: () -> Unit,
     onNewChat: () -> Unit,
     onStop: () -> Unit,
@@ -320,9 +374,7 @@ private fun NexusTopBar(
                 )
             }
         },
-        navigationIcon = {
-            BrandDot()
-        },
+        navigationIcon = { BrandDot(letter = navLetter, onClick = onOpenSettings) },
         actions = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 FilledTonalIconButton(onClick = onHistory) {
@@ -353,7 +405,7 @@ private fun NexusTopBar(
 }
 
 @Composable
-private fun BrandDot() {
+private fun BrandDot(letter: String, onClick: () -> Unit) {
     val shape = CircleShape
     val gradient = Brush.linearGradient(
         colors = listOf(
@@ -366,11 +418,12 @@ private fun BrandDot() {
             .padding(start = 16.dp)
             .size(36.dp)
             .clip(shape)
+            .clickable(onClick = onClick)
             .background(gradient),
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = "N",
+            text = letter,
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onPrimary
         )
