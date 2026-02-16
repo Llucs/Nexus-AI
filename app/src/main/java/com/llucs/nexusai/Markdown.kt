@@ -21,11 +21,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -121,7 +122,11 @@ fun splitMarkdown(input: String): List<MdBlock> {
 }
 
 @Composable
-fun MarkdownTextBlock(block: MdBlock, modifier: Modifier = Modifier) {
+fun MarkdownTextBlock(
+    block: MdBlock,
+    modifier: Modifier = Modifier,
+    contentColor: Color = MaterialTheme.colorScheme.onBackground
+) {
     when (block) {
         is MdBlock.Heading -> {
             val size = when (block.level) {
@@ -134,7 +139,7 @@ fun MarkdownTextBlock(block: MdBlock, modifier: Modifier = Modifier) {
                 text = block.text,
                 fontSize = size,
                 fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onBackground,
+                color = contentColor,
                 modifier = modifier
                     .fillMaxWidth()
                     .padding(top = 6.dp, bottom = 2.dp)
@@ -142,13 +147,16 @@ fun MarkdownTextBlock(block: MdBlock, modifier: Modifier = Modifier) {
         }
 
         is MdBlock.BulletList -> {
-            Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(
+                modifier = modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
                 block.items.forEach { item ->
                     Row(modifier = Modifier.fillMaxWidth()) {
-                        Text("• ", color = MaterialTheme.colorScheme.onBackground)
+                        Text("• ", color = contentColor)
                         Text(
                             text = renderInlineMarkdown(item),
-                            color = MaterialTheme.colorScheme.onBackground,
+                            color = contentColor,
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -163,7 +171,7 @@ fun MarkdownTextBlock(block: MdBlock, modifier: Modifier = Modifier) {
         is MdBlock.Paragraph -> {
             Text(
                 text = renderInlineMarkdown(block.text),
-                color = MaterialTheme.colorScheme.onBackground,
+                color = contentColor,
                 modifier = modifier.fillMaxWidth(),
                 overflow = TextOverflow.Clip
             )
@@ -224,24 +232,18 @@ private fun renderInlineMarkdown(src: String): AnnotatedString {
     val b = AnnotatedString.Builder()
 
     var i = 0
-    fun appendPlainUntil(end: Int) {
-        if (end > i) b.append(s.substring(i, end))
-        i = end
-    }
-
     while (i < s.length) {
         // Inline code
         if (s[i] == '`') {
             val j = s.indexOf('`', i + 1)
             if (j != -1) {
-                appendPlainUntil(i)
                 val inside = s.substring(i + 1, j)
                 val start = b.length
                 b.append(inside)
                 b.addStyle(
                     SpanStyle(
                         fontFamily = FontFamily.Monospace,
-                        background = androidx.compose.ui.graphics.Color(0x33000000)
+                        background = Color(0x33000000)
                     ),
                     start,
                     b.length
@@ -251,11 +253,10 @@ private fun renderInlineMarkdown(src: String): AnnotatedString {
             }
         }
 
-        // Bold
+        // Bold (**text**)
         if (i + 1 < s.length && s[i] == '*' && s[i + 1] == '*') {
             val j = s.indexOf("**", i + 2)
             if (j != -1) {
-                appendPlainUntil(i)
                 val inside = s.substring(i + 2, j)
                 val start = b.length
                 b.append(inside)
@@ -265,26 +266,22 @@ private fun renderInlineMarkdown(src: String): AnnotatedString {
             }
         }
 
-        // Italic
+        // Italic (*text*)
         if (s[i] == '*') {
             val j = s.indexOf('*', i + 1)
             if (j != -1) {
-                appendPlainUntil(i)
                 val inside = s.substring(i + 1, j)
                 val start = b.length
                 b.append(inside)
-                b.addStyle(SpanStyle(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic), start, b.length)
+                b.addStyle(SpanStyle(fontStyle = FontStyle.Italic), start, b.length)
                 i = j + 1
                 continue
             }
         }
 
+        // Plain character
+        b.append(s[i])
         i++
-    }
-
-    // Append remaining
-    if (i == s.length) {
-        // no-op
     }
 
     return b.toAnnotatedString()

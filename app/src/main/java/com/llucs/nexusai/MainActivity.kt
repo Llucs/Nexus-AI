@@ -38,9 +38,6 @@ import com.llucs.nexusai.data.StoredChat
 import com.llucs.nexusai.data.StoredMessage
 import com.llucs.nexusai.net.PollinationsClient
 import com.llucs.nexusai.ui.NexusTheme
-import com.llucs.nexusai.ui.MarkdownTextBlock
-import com.llucs.nexusai.ui.MdBlock
-import com.llucs.nexusai.ui.splitMarkdown
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -72,7 +69,6 @@ class MainActivity : ComponentActivity() {
 private fun ChatScreen(store: ChatStore) {
     val vm: ChatViewModel = viewModel(factory = ChatViewModel.factory(store))
     val uiState by vm.state.collectAsState()
-    val clipboard = LocalClipboardManager.current
     val listState = rememberLazyListState()
 
     val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
@@ -335,7 +331,6 @@ private fun ModernMessageBubble(
                 if (isThinking) {
                     ModernThinkingDots()
                 } else {
-                    val clipboard = LocalClipboardManager.current
                     val blocks = remember(content) { splitMarkdown(content) }
                     val textColor = if (isUser) {
                         androidx.compose.material3.MaterialTheme.colorScheme.onPrimaryContainer
@@ -344,53 +339,14 @@ private fun ModernMessageBubble(
                     }
 
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        for (b in blocks) {
-                            when (b) {
-                                is MdBlock.TextBlock -> {
-                                    MarkdownTextBlock(text = b.text, color = textColor)
-                                }
-                                is MdBlock.CodeBlock -> {
-                                    androidx.compose.material3.Surface(
-                                        shape = RoundedCornerShape(16.dp),
-                                        color = androidx.compose.material3.MaterialTheme.colorScheme.surface,
-                                    ) {
-                                        Column(modifier = Modifier.padding(12.dp)) {
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                androidx.compose.material3.Text(
-                                                    text = b.language?.ifBlank { "Código" } ?: "Código",
-                                                    fontSize = 12.sp,
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    color = androidx.compose.material3.MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
-                                                    modifier = Modifier.weight(1f)
-                                                )
-                                                androidx.compose.material3.IconButton(
-                                                    onClick = { clipboard.setText(AnnotatedString(b.code)) },
-                                                    modifier = Modifier.size(32.dp)
-                                                ) {
-                                                    androidx.compose.material3.Icon(
-                                                        imageVector = Icons.Filled.ContentCopy,
-                                                        contentDescription = "Copiar código",
-                                                        modifier = Modifier.size(16.dp),
-                                                        tint = androidx.compose.material3.MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
-                                                    )
-                                                }
-                                            }
-                                            androidx.compose.material3.Text(
-                                                text = b.code,
-                                                fontFamily = FontFamily.Monospace,
-                                                fontSize = 13.sp,
-                                                lineHeight = 18.sp,
-                                                color = androidx.compose.material3.MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f),
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
+    blocks.forEach { b ->
+        MarkdownTextBlock(
+            block = b,
+            modifier = Modifier.fillMaxWidth(),
+            contentColor = textColor
+        )
+    }
+}
                 }
             }
         }
