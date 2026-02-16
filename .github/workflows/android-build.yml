@@ -2,7 +2,7 @@ name: Android Build (Debug APK)
 
 on:
   workflow_dispatch:
-  
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -16,7 +16,17 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-          cache: gradle
+
+      # Cache seguro (não inclui transforms-*)
+      - name: Cache Gradle (safe)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/wrapper
+            ~/.gradle/caches/modules-2
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', '**/settings.gradle*', '**/gradle.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
 
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
@@ -32,8 +42,13 @@ jobs:
             chmod +x "$f" || true
           done
 
+      # ESSENCIAL: limpa o cache de transforms que está quebrado no teu log
+      - name: Clear Gradle transforms cache
+        shell: bash
+        run: rm -rf ~/.gradle/caches/transforms-*
+
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --no-daemon --refresh-dependencies
+        run: ./gradlew assembleDebug --no-daemon
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
