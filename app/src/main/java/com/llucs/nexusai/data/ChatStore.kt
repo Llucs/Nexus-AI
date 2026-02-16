@@ -51,16 +51,18 @@ class ChatStore(private val context: Context) {
     }
 
     suspend fun upsertChat(chat: StoredChat) {
-        val chats = loadChats().toMutableList()
-        val idx = chats.indexOfFirst { it.id == chat.id }
-        if (idx >= 0) chats[idx] = chat else chats.add(0, chat)
-        saveChats(chats)
+
+    val hasRealMessage = chat.messages.any { it.content.trim().isNotEmpty() }
+
+    if (!hasRealMessage) {
+        return
     }
 
-    suspend fun deleteChat(id: String) {
-        val chats = loadChats().filterNot { it.id == id }
-        saveChats(chats)
-    }
+    val chats = loadChats().toMutableList()
+    val idx = chats.indexOfFirst { it.id == chat.id }
+    if (idx >= 0) chats[idx] = chat else chats.add(0, chat)
+    saveChats(chats)
+}
 
     suspend fun clearAll() {
         context.dataStore.edit { p -> p.remove(keyChats) }
