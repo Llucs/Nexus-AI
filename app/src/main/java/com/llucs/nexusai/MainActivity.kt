@@ -23,7 +23,7 @@ import androidx.core.os.LocaleListCompat
 import com.llucs.nexusai.data.ChatStore
 import com.llucs.nexusai.data.UserPrefs
 import com.llucs.nexusai.ui.chat.ChatScreen
-import com.llucs.nexusai.ui.theme.NexusAITheme
+import com.llucs.nexusai.ui.NexusTheme
 import kotlinx.coroutines.launch
 import java.util.Locale
 
@@ -34,7 +34,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         setContent {
-            NexusAITheme {
+            NexusTheme {
                 val context = LocalContext.current
                 val scope = rememberCoroutineScope()
 
