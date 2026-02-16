@@ -819,16 +819,20 @@ private fun SettingsBottomSheet(
 ) {
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
 
-    LaunchedEffect(Unit) {
-        runCatching { sheetState.show() }
+    fun closeThen(action: () -> Unit = {}) {
+        scope.launch {
+            runCatching { sheetState.hide() }
+            onDismiss()
+            action()
+        }
     }
-
     val versionName = remember { getAppVersionName(context) }
     val displayName = userName.trim().ifBlank { "Nexus" }
 
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { closeThen() },
         sheetState = sheetState,
 ) {
         Column(
@@ -860,7 +864,7 @@ private fun SettingsBottomSheet(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                FilledTonalIconButton(onClick = onDismiss) {
+                FilledTonalIconButton(onClick = { closeThen() }) {
                     Icon(imageVector = Icons.Filled.Close, contentDescription = "Fechar")
                 }
             }
@@ -870,7 +874,7 @@ private fun SettingsBottomSheet(
             ListItem(
                 headlineContent = { Text("Nome") },
                 supportingContent = { Text(displayName) },
-                modifier = Modifier.clickable { onEditName() }
+                modifier = Modifier.clickable { closeThen(onEditName) }
             )
 
             Column(modifier = Modifier.fillMaxWidth()) {
@@ -884,12 +888,12 @@ private fun SettingsBottomSheet(
                 LanguageOption(
                     title = "Português",
                     selected = languageCode.lowercase() == "pt",
-                    onClick = { onChangeLanguage("pt") }
+                    onClick = { closeThen { onChangeLanguage("pt") } }
                 )
                 LanguageOption(
                     title = "English",
                     selected = languageCode.lowercase() == "en",
-                    onClick = { onChangeLanguage("en") }
+                    onClick = { closeThen { onChangeLanguage("en") } }
                 )
             }
 
@@ -902,7 +906,7 @@ private fun SettingsBottomSheet(
 
             TextButton(
                 onClick = {
-                    openUrlSafely(context, sourceUrl)
+                    closeThen { openUrlSafely(context, sourceUrl) }
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
