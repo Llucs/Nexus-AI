@@ -1,4 +1,5 @@
 package com.llucs.nexusai.ui.chat
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.Image
@@ -7,9 +8,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.RadioButton
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.res.painterResource
-import com.llucs.nexusai.BuildConfig
-
-
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.RepeatMode
@@ -800,5 +798,143 @@ private fun HistoryBottomSheet(
                 }
             }
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SettingsBottomSheet(
+    userName: String,
+    languageCode: String,
+    onEditName: () -> Unit,
+    onChangeLanguage: (String) -> Unit,
+    sourceUrl: String,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    val versionName = remember { getAppVersionName(context) }
+    val displayName = userName.trim().ifBlank { "Nexus" }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        windowInsets = WindowInsets(0, 0, 0, 0)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Image(
+                    painter = painterResource(id = R.mipmap.ic_launcher),
+                    contentDescription = "Nexus",
+                    modifier = Modifier.size(56.dp)
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Nexus",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "feito por Llucs",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                FilledTonalIconButton(onClick = onDismiss) {
+                    Icon(imageVector = Icons.Filled.Close, contentDescription = "Fechar")
+                }
+            }
+
+            HorizontalDivider()
+
+            ListItem(
+                headlineContent = { Text("Nome") },
+                supportingContent = { Text(displayName) },
+                modifier = Modifier.clickable { onEditName() }
+            )
+
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = "Idioma",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(Modifier.height(6.dp))
+
+                LanguageOption(
+                    title = "Português",
+                    selected = languageCode.lowercase() == "pt",
+                    onClick = { onChangeLanguage("pt") }
+                )
+                LanguageOption(
+                    title = "English",
+                    selected = languageCode.lowercase() == "en",
+                    onClick = { onChangeLanguage("en") }
+                )
+            }
+
+            HorizontalDivider()
+
+            ListItem(
+                headlineContent = { Text("Versão") },
+                supportingContent = { Text(versionName) }
+            )
+
+            TextButton(
+                onClick = {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(sourceUrl))
+                    context.startActivity(intent)
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Código fonte")
+            }
+
+            Spacer(Modifier.height(6.dp))
+        }
+    }
+}
+
+@Composable
+private fun LanguageOption(
+    title: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        RadioButton(selected = selected, onClick = onClick)
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
+
+@Suppress("DEPRECATION")
+private fun getAppVersionName(context: Context): String {
+    return try {
+        val info = context.packageManager.getPackageInfo(context.packageName, 0)
+        info.versionName ?: "?"
+    } catch (_: Exception) {
+        "?"
     }
 }
