@@ -480,7 +480,7 @@ private fun MessageBubble(
                         dotColor = bubbleContent.copy(alpha = 0.8f)
                     )
                 } else {
-                    val content = if (isUser) message.content else cleanAssistantText(message.content)
+                    val content = message.content.replace("\\n", "\n")
                     val blocks = remember(content) { splitMarkdown(content) }
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         blocks.forEach { b ->
