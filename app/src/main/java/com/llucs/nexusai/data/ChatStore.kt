@@ -50,9 +50,11 @@ class ChatStore(private val context: Context) {
     }
 
     suspend fun upsertChat(chat: StoredChat) {
-        val hasRealMessage = chat.messages.any { it.content.trim().isNotEmpty() }
+        val hasUserMessage = chat.messages.any {
+            it.role == "user" && it.content.trim().isNotEmpty()
+        }
 
-        if (!hasRealMessage) {
+        if (!hasUserMessage) {
             deleteChat(chat.id)
             return
         }
