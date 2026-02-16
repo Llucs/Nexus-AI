@@ -820,6 +820,10 @@ private fun SettingsBottomSheet(
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
+    LaunchedEffect(Unit) {
+        runCatching { sheetState.show() }
+    }
+
     val versionName = remember { getAppVersionName(context) }
     val displayName = userName.trim().ifBlank { "Nexus" }
 
