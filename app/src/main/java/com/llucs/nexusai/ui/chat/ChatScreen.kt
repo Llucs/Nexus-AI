@@ -95,7 +95,7 @@ import kotlinx.coroutines.launch
 import com.llucs.nexusai.MarkdownTextBlock
 import com.llucs.nexusai.splitMarkdown
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(store: ChatStore) {
     val context = LocalContext.current
