@@ -125,6 +125,8 @@ val systemPrompt = if (locale == "pt") {
     """
     Oi! Eu sou o Nexus, seu parceiro de aventuras com IA.
 
+    Nome do usuário: ${displayName}. Sempre chame o usuário de "${displayName}".
+
     Regras do Nexus:
     - Fale claro e simples.
     - Vá direto ao ponto.
@@ -140,6 +142,8 @@ val systemPrompt = if (locale == "pt") {
 } else {
     """
     Hi! I'm Nexus, your AI adventure buddy.
+
+    User name: ${displayName}. Always address the user as "${displayName}".
 
     Nexus rules:
     - Speak clearly and keep things simple.
@@ -275,7 +279,8 @@ val greeting = if (locale == "pt") {
                     val showMeta = prevRole != msg.role
 
                     MessageBubble(
-                        message = msg,
+                            userLetter = navLetter,
+                            message = msg,
                         showMeta = showMeta,
                         onCopy = if (msg.role == "assistant" && msg.content.isNotBlank() && !msg.isThinking) {
                             {
@@ -443,6 +448,7 @@ private fun cleanAssistantText(s: String): String {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun MessageBubble(
+    userLetter: String,
     message: UiMessage,
     showMeta: Boolean,
     onCopy: (() -> Unit)?,
@@ -481,7 +487,7 @@ private fun MessageBubble(
                 )
                 if (isUser) {
                     Spacer(Modifier.width(8.dp))
-                    AvatarDot(bg = avatarBg, fg = avatarFg, letter = "U")
+                    AvatarDot(bg = avatarBg, fg = avatarFg, letter = userLetter)
                 }
             }
             Spacer(Modifier.height(6.dp))
@@ -820,8 +826,7 @@ private fun SettingsBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        windowInsets = WindowInsets(0, 0, 0, 0)
-    ) {
+) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -846,7 +851,7 @@ private fun SettingsBottomSheet(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "feito por Llucs",
+                        text = "feito por Lucas",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -893,8 +898,7 @@ private fun SettingsBottomSheet(
 
             TextButton(
                 onClick = {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(sourceUrl))
-                    context.startActivity(intent)
+                    openUrlSafely(context, sourceUrl)
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
