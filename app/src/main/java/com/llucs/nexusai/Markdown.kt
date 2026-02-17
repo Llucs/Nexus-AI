@@ -41,7 +41,8 @@ sealed interface MdBlock {
     data class Paragraph(val text: String) : MdBlock
     data class BulletList(val items: List<String>) : MdBlock
     data class CodeFence(val lang: String?, val code: String) : MdBlock
-    data object Hr : MdBlock
+    data object HorizontalRule : MdBlock
+    data class Table(val raw: String) : MdBlock
 }
 
 fun splitMarkdown(input: String): List<MdBlock> {
@@ -128,7 +129,36 @@ fun splitMarkdown(input: String): List<MdBlock> {
             continue
         }
 
-        // Blank line
+        // Horizontal rule (---, ***, ___)
+if (trimmed.matches(Regex("^(?:-{3,}|\*{3,}|_{3,})$"))) {
+    out.add(MdBlock.HorizontalRule)
+    i++
+    continue
+}
+
+// Markdown table (| a | b |)
+if (trimmed.contains('|') && i + 1 < lines.size) {
+    val next = lines[i + 1].trim()
+    val sep = next.replace(" ", "")
+    val isSep = sep.all { it == '|' || it == '-' || it == ':' } && sep.contains('-') && sep.contains('|')
+    if (isSep) {
+        val tableLines = ArrayList<String>()
+        tableLines.add(trimmed)
+        tableLines.add(lines[i + 1])
+        i += 2
+        while (i < lines.size) {
+            val row = lines[i]
+            if (row.trim().isBlank()) break
+            if (!row.contains('|')) break
+            tableLines.add(row)
+            i++
+        }
+        out.add(MdBlock.Table(tableLines.joinToString("\n")))
+        continue
+    }
+}
+
+// Blank line
         if (trimmed.isBlank()) {
             i++
             continue
@@ -201,6 +231,14 @@ fun MarkdownTextBlock(
 
         is MdBlock.CodeFence -> {
             CodeBlock(code = block.code, lang = block.lang, modifier = modifier)
+        }
+
+        is MdBlock.Table -> {
+            CodeBlock(code = block.raw, lang = "table", modifier = modifier)
+        }
+
+        is MdBlock.HorizontalRule -> {
+            HorizontalDivider(modifier = modifier.fillMaxWidth().padding(vertical = 8.dp))
         }
 
         is MdBlock.Paragraph -> {

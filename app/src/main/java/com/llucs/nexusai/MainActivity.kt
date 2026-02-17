@@ -56,14 +56,18 @@ class MainActivity : ComponentActivity() {
                 }
 
                 fun applyLanguage(code: String) {
-                    val tags = when (code) {
-                        "pt" -> "pt-BR"
-                        "en" -> "en"
-                        else -> ""
-                    }
-                    val list = if (tags.isBlank()) LocaleListCompat.getEmptyLocaleList() else LocaleListCompat.forLanguageTags(tags)
-                    AppCompatDelegate.setApplicationLocales(list)
-                }
+    val tags = when (code) {
+        "pt" -> "pt-BR"
+        "en" -> "en"
+        else -> ""
+    }
+    val desired = LocaleListCompat.forLanguageTags(tags)
+    val current = AppCompatDelegate.getApplicationLocales()
+    if (current.toLanguageTags() == desired.toLanguageTags()) return
+    AppCompatDelegate.setApplicationLocales(desired)
+    this@MainActivity.recreate()
+}
+
 
                 LaunchedEffect(Unit) {
                     val savedName = prefs.getUserName()
