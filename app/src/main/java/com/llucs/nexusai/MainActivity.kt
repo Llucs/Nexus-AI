@@ -5,6 +5,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
@@ -26,9 +27,10 @@ import com.llucs.nexusai.data.UserPrefs
 import com.llucs.nexusai.ui.NexusTheme
 import com.llucs.nexusai.ui.chat.ChatScreen
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import java.util.Locale
 
-class MainActivity : ComponentActivity() {
+class MainActivity : AppCompatActivity() {
 
     private fun defaultLanguageCode(): String {
         val sys = Locale.getDefault().language.lowercase(Locale.ROOT)
@@ -60,6 +62,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
     installSplashScreen()
+
+    // Apply saved locale as early as possible so Compose stringResource() updates correctly.
+    val earlyPrefs = UserPrefs(applicationContext)
+    val earlyLang = runBlocking { normalizeLanguage(earlyPrefs.getLanguage()) }
+    applyLanguage(earlyLang)
+
     super.onCreate(savedInstanceState)
     enableEdgeToEdge()
 
@@ -77,18 +85,18 @@ class MainActivity : ComponentActivity() {
             var nameInput by rememberSaveable { mutableStateOf("") }
             var languageCode by rememberSaveable { mutableStateOf(defaultLanguageCode()) }
 
-            LaunchedEffect(Unit) {
-                val savedName = prefs.getUserName().orEmpty().trim()
-                val savedLang = normalizeLanguage(prefs.getLanguage())
+                LaunchedEffect(Unit) {
+                    val savedName = prefs.getUserName().orEmpty().trim()
+                    val savedLang = normalizeLanguage(prefs.getLanguage())
 
-                languageCode = savedLang
-                applyLanguage(savedLang)
+                    languageCode = savedLang
+                    applyLanguage(savedLang)
 
-                userName = savedName
-                nameInput = savedName
+                    userName = savedName
+                    nameInput = savedName
 
-                prefsLoaded = true
-            }
+                    prefsLoaded = true
+                }
 
                 val lang = normalizeLanguage(languageCode)
 

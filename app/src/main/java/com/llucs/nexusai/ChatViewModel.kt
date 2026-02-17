@@ -17,17 +17,19 @@ import java.util.UUID
 
 class ChatViewModel(
     private val store: ChatStore,
-    private val strings: ChatStrings
+    strings: ChatStrings
 ) : ViewModel() {
 
     private val client = PollinationsClient()
 
-    private val greeting = UiMessage("assistant", strings.greeting)
+    private var strings: ChatStrings = strings
+
+    private fun greetingMessage(): UiMessage = UiMessage("assistant", strings.greeting)
 
     private val _state = MutableStateFlow(
         ChatUiState(
             currentChatId = UUID.randomUUID().toString(),
-            messages = listOf(greeting)
+            messages = listOf(greetingMessage())
         )
     )
     val state: StateFlow<ChatUiState> = _state
@@ -60,7 +62,7 @@ class ChatViewModel(
         val id = UUID.randomUUID().toString()
         _state.value = _state.value.copy(
             currentChatId = id,
-            messages = listOf(greeting),
+            messages = listOf(greetingMessage()),
             input = "",
             sending = false,
             historyOpen = false
@@ -77,7 +79,7 @@ class ChatViewModel(
         val ui = chat.messages.map { UiMessage(it.role, it.content) }
         _state.value = _state.value.copy(
             currentChatId = chat.id,
-            messages = if (ui.isNotEmpty()) ui else listOf(greeting),
+            messages = if (ui.isNotEmpty()) ui else listOf(greetingMessage()),
             historyOpen = false,
             input = "",
             sending = false
@@ -103,7 +105,7 @@ class ChatViewModel(
             _state.value = _state.value.copy(
                 chats = emptyList(),
                 currentChatId = id,
-                messages = listOf(greeting),
+                messages = listOf(greetingMessage()),
                 input = "",
                 sending = false,
                 historyOpen = false
@@ -185,6 +187,21 @@ class ChatViewModel(
             } finally {
                 runningJob = null
             }
+        }
+    }
+
+    /**
+     * Updates localized strings / user name hints without recreating the ViewModel.
+     * This keeps chat history but ensures the system prompt and greeting are correct.
+     */
+    fun updateStrings(newStrings: ChatStrings) {
+        strings = newStrings
+
+        // If the chat only has the initial greeting, update it (so it can include the user's name).
+        val msgs = _state.value.messages
+        if (msgs.size == 1 && msgs.firstOrNull()?.role == "assistant") {
+            _state.value = _state.value.copy(messages = listOf(greetingMessage()))
+            viewModelScope.launch { persist() }
         }
     }
 
