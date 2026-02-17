@@ -848,9 +848,9 @@ private fun SettingsBottomSheet(
                 horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 Image(
-                    painter = painterResource(id = R.mipmap.ic_launcher),
-                    contentDescription = "Nexus",
-                    modifier = Modifier.size(56.dp)
+    painter = painterResource(id = R.drawable.logo),
+    contentDescription = "Nexus",
+    modifier = Modifier.size(56.dp)
                 )
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
