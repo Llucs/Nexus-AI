@@ -64,6 +64,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             NexusTheme {
                 val context = LocalContext.current
+                val activity = context as? ComponentActivity
                 val scope = rememberCoroutineScope()
 
                 val chatStore = remember { ChatStore(context.applicationContext) }
@@ -107,6 +108,7 @@ class MainActivity : ComponentActivity() {
                                 scope.launch { prefs.setLanguage(fixed) }
                                 languageCode = fixed
                                 applyLanguage(fixed)
+                                activity?.recreate()
                             }
                         }
                     )
