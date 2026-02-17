@@ -9,6 +9,7 @@
     <string name="action_new_chat">New chat</string>
     <string name="action_stop">Stop</string>
     <string name="action_copy">Copy</string>
+    <string name="action_close">Close</string>
 
     <string name="label_you">You</string>
     <string name="label_assistant">Nexus</string>
@@ -39,4 +40,17 @@
     <string name="confirm_delete">Delete</string>
 
     <string name="msg_interrupted">Interrupted.</string>
+
+    <string name="settings_made_by">made by %1$s</string>
+    <string name="settings_name">Name</string>
+    <string name="settings_language">Language</string>
+    <string name="settings_language_select">Select language</string>
+    <string name="settings_version">Version</string>
+    <string name="settings_source_code">Source code</string>
+    <string name="settings_not_set">Not set</string>
+
+    <string name="language_pt">Português</string>
+    <string name="language_en">English</string>
+    <string name="language_es">Español</string>
+    <string name="language_ru">Русский</string>
 </resources>
