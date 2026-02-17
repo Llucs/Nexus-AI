@@ -28,7 +28,6 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -41,18 +40,13 @@ sealed interface MdBlock {
     data class Paragraph(val text: String) : MdBlock
     data class BulletList(val items: List<String>) : MdBlock
     data class CodeFence(val lang: String?, val code: String) : MdBlock
-    data object HorizontalRule : MdBlock
-    data class Table(val raw: String) : MdBlock
 }
 
 fun splitMarkdown(input: String): List<MdBlock> {
     val text = input.replace("\r\n", "\n")
-    	.replace(Regex("""(?<=\S)(#{1,6})"""), "\n$1")
     val lines = text.split("\n")
 
     val out = ArrayList<MdBlock>(maxOf(4, lines.size / 2))
-
-    fun isTableLine(s: String): Boolean = s.contains('|') && s.count { it == '|' } >= 2
 
     var i = 0
     while (i < lines.size) {
@@ -77,30 +71,6 @@ fun splitMarkdown(input: String): List<MdBlock> {
 
         // Heading (#, ##, ###)
         val trimmed = line.trimStart()
-
-        val tline = trimmed.trim()
-        val isHr = tline.matches(Regex("""^(-\s*){3,}$""")) ||
-            tline.matches(Regex("""^(_\s*){3,}$""")) ||
-            tline.matches(Regex("""^(\*\s*){3,}$"""))
-        if (isHr) {
-            out.add(MdBlock.Hr)
-            i++
-            continue
-        }
-
-        if (isTableLine(trimmed)) {
-            val buf = StringBuilder(trimmed.trimEnd())
-            i++
-            while (i < lines.size) {
-                val tl = lines[i].trimEnd()
-                if (tl.isBlank()) break
-                if (!isTableLine(tl)) break
-                buf.append("\n").append(tl)
-                i++
-            }
-            out.add(MdBlock.CodeFence(null, buf.toString()))
-            continue
-        }
         if (trimmed.startsWith("#")) {
             val level = trimmed.takeWhile { it == '#' }.length
             if (level in 1..6 && trimmed.length > level && trimmed[level] == ' ') {
@@ -129,36 +99,7 @@ fun splitMarkdown(input: String): List<MdBlock> {
             continue
         }
 
-        // Horizontal rule (---, ***, ___)
-if (trimmed.matches(Regex("^(?:-{3,}|\*{3,}|_{3,})$"))) {
-    out.add(MdBlock.HorizontalRule)
-    i++
-    continue
-}
-
-// Markdown table (| a | b |)
-if (trimmed.contains('|') && i + 1 < lines.size) {
-    val next = lines[i + 1].trim()
-    val sep = next.replace(" ", "")
-    val isSep = sep.all { it == '|' || it == '-' || it == ':' } && sep.contains('-') && sep.contains('|')
-    if (isSep) {
-        val tableLines = ArrayList<String>()
-        tableLines.add(trimmed)
-        tableLines.add(lines[i + 1])
-        i += 2
-        while (i < lines.size) {
-            val row = lines[i]
-            if (row.trim().isBlank()) break
-            if (!row.contains('|')) break
-            tableLines.add(row)
-            i++
-        }
-        out.add(MdBlock.Table(tableLines.joinToString("\n")))
-        continue
-    }
-}
-
-// Blank line
+        // Blank line
         if (trimmed.isBlank()) {
             i++
             continue
@@ -233,31 +174,12 @@ fun MarkdownTextBlock(
             CodeBlock(code = block.code, lang = block.lang, modifier = modifier)
         }
 
-        is MdBlock.Table -> {
-            CodeBlock(code = block.raw, lang = "table", modifier = modifier)
-        }
-
-        is MdBlock.HorizontalRule -> {
-            HorizontalDivider(modifier = modifier.fillMaxWidth().padding(vertical = 8.dp))
-        }
-
         is MdBlock.Paragraph -> {
             Text(
                 text = renderInlineMarkdown(block.text, inlineCodeBg, inlineCodeFg),
                 color = contentColor,
                 modifier = modifier.fillMaxWidth(),
                 overflow = TextOverflow.Clip
-            )
-        }
-
-
-        is MdBlock.Hr -> {
-            androidx.compose.material3.HorizontalDivider(
-                modifier = modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 10.dp),
-                thickness = 2.dp,
-                color = contentColor.copy(alpha = 0.25f)
             )
         }
     }
@@ -320,7 +242,6 @@ private fun copyToClipboard(ctx: Context, text: String) {
 private fun renderInlineMarkdown(src: String, inlineCodeBg: Color, inlineCodeFg: Color): AnnotatedString {
     // Handles: **bold**, *italic*, `code`
     val s = src
-        .replace(Regex("""([:;,.!?])([A-Za-zÀ-ÿ])"""), "$1 $2")
     val b = AnnotatedString.Builder()
 
     var i = 0
@@ -346,20 +267,7 @@ private fun renderInlineMarkdown(src: String, inlineCodeBg: Color, inlineCodeFg:
             }
         }
 
-        // Strikethrough (~~text~~)
-        if (i + 1 < s.length && s[i] == '~' && s[i + 1] == '~') {
-            val j = s.indexOf("~~", i + 2)
-            if (j != -1) {
-                val inside = s.substring(i + 2, j)
-                val start = b.length
-                b.append(inside)
-                b.addStyle(SpanStyle(textDecoration = TextDecoration.LineThrough), start, b.length)
-                i = j + 2
-                continue
-            }
-        }
-
-        // Bold (**text** or __text__)
+        // Bold (**text**)
         if (i + 1 < s.length && s[i] == '*' && s[i + 1] == '*') {
             val j = s.indexOf("**", i + 2)
             if (j != -1) {
@@ -371,32 +279,10 @@ private fun renderInlineMarkdown(src: String, inlineCodeBg: Color, inlineCodeFg:
                 continue
             }
         }
-        if (i + 1 < s.length && s[i] == '_' && s[i + 1] == '_') {
-            val j = s.indexOf("__", i + 2)
-            if (j != -1) {
-                val inside = s.substring(i + 2, j)
-                val start = b.length
-                b.append(inside)
-                b.addStyle(SpanStyle(fontWeight = FontWeight.SemiBold), start, b.length)
-                i = j + 2
-                continue
-            }
-        }
 
-        // Italic (*text* or _text_)
+        // Italic (*text*)
         if (s[i] == '*') {
             val j = s.indexOf('*', i + 1)
-            if (j != -1) {
-                val inside = s.substring(i + 1, j)
-                val start = b.length
-                b.append(inside)
-                b.addStyle(SpanStyle(fontStyle = FontStyle.Italic), start, b.length)
-                i = j + 1
-                continue
-            }
-        }
-        if (s[i] == '_') {
-            val j = s.indexOf('_', i + 1)
             if (j != -1) {
                 val inside = s.substring(i + 1, j)
                 val start = b.length
