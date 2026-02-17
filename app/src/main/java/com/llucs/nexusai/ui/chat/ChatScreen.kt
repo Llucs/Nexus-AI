@@ -819,6 +819,9 @@ private fun SettingsBottomSheet(
 ) {
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    LaunchedEffect(Unit) {
+        sheetState.show()
+    }
     val scope = rememberCoroutineScope()
 
     fun closeThen(action: () -> Unit = {}) {
@@ -848,9 +851,9 @@ private fun SettingsBottomSheet(
                 horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 Image(
-    painter = painterResource(id = R.drawable.logo),
-    contentDescription = "Nexus",
-    modifier = Modifier.size(56.dp)
+                    painter = painterResource(id = R.drawable.logo),
+                    contentDescription = "Nexus",
+                    modifier = Modifier.size(56.dp)
                 )
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
