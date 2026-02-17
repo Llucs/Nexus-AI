@@ -1,0 +1,56 @@
+<resources>
+    <string name="app_name">Nexus</string>
+    <string name="developer_name">Llucs</string>
+
+    <string name="topbar_title">Nexus AI</string>
+    <string name="topbar_subtitle">Ваше пространство ИИ</string>
+
+    <string name="action_history">История</string>
+    <string name="action_new_chat">Новый чат</string>
+    <string name="action_stop">Стоп</string>
+    <string name="action_copy">Копировать</string>
+    <string name="action_close">Закрыть</string>
+
+    <string name="label_you">Вы</string>
+    <string name="label_assistant">Nexus</string>
+    <string name="label_typing">Печатает</string>
+
+    <string name="input_placeholder">Спросите Nexus AI</string>
+    <string name="input_send">Отправить</string>
+
+    <string name="snack_copied">Скопировано ✓</string>
+    <string name="snack_retry">Повторить</string>
+    <string name="generic_error">Ошибка</string>
+    <string name="assistant_error_template">Ошибка: %1$s</string>
+    <string name="snack_failed_template">Не удалось: %1$s</string>
+
+    <string name="history_title">История чатов</string>
+    <string name="history_search">Поиск чатов</string>
+    <string name="history_empty">Сохранённых чатов пока нет.</string>
+    <string name="history_close">Закрыть</string>
+    <string name="history_clear_all">Очистить всё</string>
+    <string name="history_delete_chat">Удалить чат</string>
+    <string name="history_messages_count">%1$d сообщений</string>
+    <string name="history_new_chat">(новый чат)</string>
+    <string name="history_untitled">(без названия)</string>
+
+    <string name="confirm_clear_title">Очистить всю историю?</string>
+    <string name="confirm_clear_text">Это удалит все сохранённые чаты на этом устройстве.</string>
+    <string name="confirm_cancel">Отмена</string>
+    <string name="confirm_delete">Удалить</string>
+
+    <string name="msg_interrupted">Прервано.</string>
+
+    <string name="settings_made_by">сделано %1$s</string>
+    <string name="settings_name">Имя</string>
+    <string name="settings_language">Язык</string>
+    <string name="settings_language_select">Выбрать язык</string>
+    <string name="settings_version">Версия</string>
+    <string name="settings_source_code">Исходный код</string>
+    <string name="settings_not_set">Не задано</string>
+
+    <string name="language_pt">Португальский</string>
+    <string name="language_en">Английский</string>
+    <string name="language_es">Испанский</string>
+    <string name="language_ru">Русский</string>
+</resources>
