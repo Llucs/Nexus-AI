@@ -102,6 +102,11 @@ import com.llucs.nexusai.data.StoredChat
 import kotlinx.coroutines.launch
 import com.llucs.nexusai.MarkdownTextBlock
 import com.llucs.nexusai.splitMarkdown
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Language
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -122,59 +127,118 @@ fun ChatScreen(
     val trimmedName = userName.trim()
     val hasName = trimmedName.isNotEmpty()
     val displayName = trimmedName
-    val nameHintPt = if (hasName) "Nome do usuário: $displayName. Sempre chame o usuário de \"$displayName\"." else "O nome do usuário ainda não foi informado. Se precisar, pergunte o nome. Não use \"você\" como nome."
-    val nameHintEn = if (hasName) "User name: $displayName. Always address the user as \"$displayName\"." else "The user's name hasn't been provided yet. If needed, ask for their name. Do not use \"you\" as a name."
+        val nameHint = when (locale) {
+        "pt" -> if (hasName) {
+            "Nome do usuário: $displayName. Sempre chame o usuário de \"$displayName\"."
+        } else {
+            "O nome do usuário ainda não foi informado. Se precisar, pergunte o nome. Não use \"você\" como nome."
+        }
+        "es" -> if (hasName) {
+            "Nombre del usuario: $displayName. Llama siempre al usuario \"$displayName\"."
+        } else {
+            "El nombre del usuario aún no fue informado. Si hace falta, pregunta el nombre. No uses \"tú\" como nombre."
+        }
+        "ru" -> if (hasName) {
+            "Имя пользователя: $displayName. Всегда обращайся к пользователю как \"$displayName\"."
+        } else {
+            "Имя пользователя ещё не указано. Если нужно, спроси имя. Не используй «вы» как имя."
+        }
+        else -> if (hasName) {
+            "User name: $displayName. Always address the user as \"$displayName\"."
+        } else {
+            "The user's name hasn't been provided yet. If needed, ask for their name. Do not use \"you\" as a name."
+        }
+    }
 
-    val systemPrompt = if (locale == "pt") {
-    """
-    Oi! Eu sou o Nexus, seu parceiro de aventuras com IA.
+    val systemPrompt = when (locale) {
+        "pt" -> """
+            Oi! Eu sou o Nexus AI.
 
-    $nameHintPt
+            $nameHint
 
-    Regras do Nexus:
-    - Fale claro e simples.
-    - Vá direto ao ponto.
-    - Use Markdown bem formatado quando ajudar:
-      - Use linhas em branco entre parágrafos.
-      - Em listas, coloque cada item em uma linha.
-      - Para separador, use uma linha só com: ---
-      - Para código, use blocos com ``` e linguagem (se souber).
-    - Se eu não souber algo, eu vou falar e a gente encontra uma alternativa.
+            Regras do Nexus:
+            - Fale claro e simples.
+            - Vá direto ao ponto.
+            - Não junte palavras, letras e números; mantenha espaçamento normal.
+            - Use Markdown bem formatado quando ajudar:
+              - Deixe uma linha em branco entre parágrafos.
+              - Em listas, um item por linha.
+              - Para separador, use uma linha só com: ---
+              - Para código, use blocos com ``` e linguagem (se souber).
+            - Se eu não souber algo, eu vou falar e sugerir alternativas.
+        """.trimIndent()
 
-    """.trimIndent()
-} else {
-    """
-    Hi! I'm Nexus, your AI adventure buddy.
+        "es" -> """
+            ¡Hola! Soy Nexus AI.
 
-    $nameHintEn
+            $nameHint
 
-    Nexus rules:
-    - Speak clearly and keep things simple.
-    - Go straight to the point.
-    - Use well-formatted Markdown when helpful:
-      - Leave blank lines between paragraphs.
-      - In lists, keep one item per line.
-      - For a divider, use a line containing only: ---
-      - For code, use fenced blocks with ``` and language (if known).
-    - If I don't know something, I'll say so and we’ll find an alternative.
-    """.trimIndent()
-}
+            Reglas:
+            - Habla claro y simple.
+            - Ve directo al punto.
+            - No juntes palabras, letras y números; mantén el espaciado normal.
+            - Usa Markdown bien formateado cuando ayude:
+              - Deja una línea en blanco entre párrafos.
+              - En listas, un ítem por línea.
+              - Para separar, usa una línea que tenga solo: ---
+              - Para código, usa bloques con ``` y el lenguaje (si lo sabes).
+            - Si no sé algo, lo diré y sugeriré alternativas.
+        """.trimIndent()
+
+        "ru" -> """
+            Привет! Я Nexus AI.
+
+            $nameHint
+
+            Правила:
+            - Пиши ясно и просто.
+            - Сразу к делу.
+            - Не склеивай слова, буквы и числа; сохраняй обычные пробелы.
+            - Используй аккуратный Markdown, когда это помогает:
+              - Оставляй пустую строку между абзацами.
+              - В списках — один пункт на строку.
+              - Для разделителя — строка только из: ---
+              - Для кода — блоки с ``` и языком (если знаешь).
+            - Если я чего-то не знаю, я скажу и предложу варианты.
+        """.trimIndent()
+
+        else -> """
+            Hi! I'm Nexus AI.
+
+            $nameHint
+
+            Rules:
+            - Speak clearly and keep it simple.
+            - Go straight to the point.
+            - Don't glue words, letters, and numbers together; keep normal spacing.
+            - Use well-formatted Markdown when helpful:
+              - Leave a blank line between paragraphs.
+              - In lists, keep one item per line.
+              - For a divider, use a line containing only: ---
+              - For code, use fenced blocks with ``` and language (if known).
+            - If I don't know something, I'll say so and suggest alternatives.
+        """.trimIndent()
+    }
 
     val finalSystemPrompt = if (hasName) {
-        systemPrompt + "\n\n" + if (locale == "pt") {
-            "Chame o usuário de: ${displayName}."
-        } else {
-            "Call the user: ${displayName}."
+        systemPrompt + "
+
+" + when (locale) {
+            "pt" -> "Chame o usuário de: $displayName."
+            "es" -> "Llama al usuario: $displayName."
+            "ru" -> "Обращайся к пользователю: $displayName."
+            else -> "Call the user: $displayName."
         }
     } else {
         systemPrompt
     }
 
-val greeting = if (locale == "pt") {
-    if (userName.isBlank()) "Oi! Eu sou o Nexus AI. Pode perguntar qualquer coisa." else "Oi, ${userName.trim()}! Eu sou o Nexus AI. Pode perguntar qualquer coisa."
-} else {
-    if (userName.isBlank()) "Hi! I'm Nexus AI. Ask me anything." else "Hi, ${userName.trim()}! I'm Nexus AI. Ask me anything."
-}
+    val greeting = when (locale) {
+        "pt" -> if (hasName) "Oi, ${displayName}! Eu sou o Nexus AI. Pode perguntar qualquer coisa." else "Oi! Eu sou o Nexus AI. Pode perguntar qualquer coisa."
+        "es" -> if (hasName) "¡Hola, ${displayName}! Soy Nexus AI. Pregunta lo que quieras." else "¡Hola! Soy Nexus AI. Pregunta lo que quieras."
+        "ru" -> if (hasName) "Привет, ${displayName}! Я Nexus AI. Спрашивай что угодно." else "Привет! Я Nexus AI. Спрашивай что угодно."
+        else -> if (hasName) "Hi, ${displayName}! I'm Nexus AI. Ask me anything." else "Hi! I'm Nexus AI. Ask me anything."
+    }
 
     val interrupted = stringResource(R.string.msg_interrupted)
     val genericError = stringResource(R.string.generic_error)
@@ -496,6 +560,12 @@ private fun MessageBubble(
     val avatarBg = if (isUser) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.tertiary
     val avatarFg = if (isUser) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onTertiary
 
+    val bubbleShape = if (isUser) {
+        RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomEnd = 10.dp, bottomStart = 22.dp)
+    } else {
+        RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomEnd = 22.dp, bottomStart = 10.dp)
+    }
+
     Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = align) {
         if (showMeta) {
             Row(
@@ -523,30 +593,26 @@ private fun MessageBubble(
         Surface(
             color = bubbleColor,
             contentColor = bubbleContent,
-            shape = RoundedCornerShape(22.dp),
-            tonalElevation = 1.dp,
+            shape = bubbleShape,
+            tonalElevation = 0.dp,
             shadowElevation = 0.dp,
             modifier = Modifier
                 .widthIn(max = 520.dp)
+                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f), bubbleShape)
                 .combinedClickable(
                     onClick = {},
                     onLongClick = { onLongCopy?.invoke() }
                 )
         ) {
-            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+            Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
 
                 if (!isUser && onCopy != null) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.End
                     ) {
-                        Text(
-                            text = stringResource(R.string.label_assistant),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = bubbleContent.copy(alpha = 0.75f)
-                        )
-                        IconButton(onClick = onCopy, modifier = Modifier.size(34.dp)) {
+                        IconButton(onClick = onCopy, modifier = Modifier.size(32.dp)) {
                             Icon(
                                 imageVector = Icons.Filled.ContentCopy,
                                 contentDescription = stringResource(R.string.action_copy),
@@ -555,7 +621,7 @@ private fun MessageBubble(
                             )
                         }
                     }
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(4.dp))
                 }
 
                 if (message.isThinking) {
@@ -580,6 +646,7 @@ private fun MessageBubble(
         }
     }
 }
+
 
 @Composable
 private fun AvatarDot(bg: Color, fg: Color, letter: String) {
@@ -654,42 +721,58 @@ private fun NexusInputBar(
         tonalElevation = 2.dp,
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f)
     ) {
-        Row(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
                 .imePadding()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.Bottom
+                .padding(horizontal = 16.dp, vertical = 10.dp)
         ) {
-            OutlinedTextField(
+            TextField(
                 value = input,
                 onValueChange = onInputChange,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp),
                 enabled = enabled,
-                placeholder = { Text(stringResource(R.string.input_placeholder)) },                shape = RoundedCornerShape(26.dp),
+                placeholder = { Text(stringResource(R.string.input_placeholder)) },
+                shape = RoundedCornerShape(999.dp),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                 keyboardActions = KeyboardActions(onSend = { if (canSend) onSend() }),
                 maxLines = 6,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
+                trailingIcon = {
+                    Surface(
+                        shape = CircleShape,
+                        color = if (canSend) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                    ) {
+                        IconButton(
+                            onClick = { if (canSend) onSend() },
+                            enabled = canSend,
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Send,
+                                contentDescription = stringResource(R.string.input_send),
+                                tint = if (canSend) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                },
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
+                    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.18f),
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    disabledIndicatorColor = Color.Transparent,
+                    cursorColor = MaterialTheme.colorScheme.onSurface
                 )
             )
-
-            Spacer(Modifier.width(10.dp))
-
-            FloatingActionButton(
-                onClick = { if (canSend) onSend() },
-                containerColor = if (canSend) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                contentColor = if (canSend) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                modifier = Modifier.size(48.dp)
-            ) {
-                Icon(Icons.Filled.Send, contentDescription = stringResource(R.string.input_send))
-            }
         }
     }
 }
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -846,25 +929,36 @@ private fun SettingsBottomSheet(
 ) {
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    LaunchedEffect(Unit) {
-        sheetState.show()
-    }
+    LaunchedEffect(Unit) { sheetState.show() }
     val scope = rememberCoroutineScope()
 
-    fun closeThen(action: () -> Unit = {}) {
+    var showLanguagePicker by remember { mutableStateOf(false) }
+
+    fun closeSettingsThen(action: () -> Unit = {}) {
         scope.launch {
             runCatching { sheetState.hide() }
             onDismiss()
             action()
         }
     }
+
     val versionName = remember { getAppVersionName(context) }
-    val displayName = userName.trim().ifBlank { "Nexus" }
+    val displayName = userName.trim().ifBlank { stringResource(R.string.settings_not_set) }
+
+    val langCode = languageCode.trim().lowercase()
+    val languageLabel = when (langCode) {
+        "pt" -> stringResource(R.string.language_pt)
+        "en" -> stringResource(R.string.language_en)
+        "es" -> stringResource(R.string.language_es)
+        "ru" -> stringResource(R.string.language_ru)
+        else -> stringResource(R.string.language_en)
+    }
 
     ModalBottomSheet(
-        onDismissRequest = { closeThen() },
+        onDismissRequest = { closeSettingsThen() },
         sheetState = sheetState,
-) {
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -879,95 +973,238 @@ private fun SettingsBottomSheet(
             ) {
                 Image(
                     painter = painterResource(id = R.drawable.logo),
-                    contentDescription = "Nexus",
+                    contentDescription = null,
                     modifier = Modifier.size(56.dp)
                 )
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Nexus",
+                        text = stringResource(R.string.topbar_title),
                         style = MaterialTheme.typography.titleLarge,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "feito por Llucs",
+                        text = stringResource(R.string.settings_made_by, stringResource(R.string.developer_name)),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                FilledTonalIconButton(onClick = { closeThen() }) {
-                    Icon(imageVector = Icons.Filled.Close, contentDescription = "Fechar")
+                FilledTonalIconButton(onClick = { closeSettingsThen() }) {
+                    Icon(imageVector = Icons.Filled.Close, contentDescription = stringResource(R.string.action_close))
                 }
             }
 
             HorizontalDivider()
 
-            ListItem(
-                headlineContent = { Text("Nome") },
-                supportingContent = { Text(displayName) },
-                modifier = Modifier.clickable { closeThen(onEditName) }
+            PillListItem(
+                headline = stringResource(R.string.settings_name),
+                supporting = displayName,
+                onClick = { closeSettingsThen(onEditName) }
             )
 
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = "Idioma",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(Modifier.height(6.dp))
-
-                LanguageOption(
-                    title = "Português",
-                    selected = languageCode.lowercase() == "pt",
-                    onClick = { closeThen { onChangeLanguage("pt") } }
-                )
-                LanguageOption(
-                    title = "English",
-                    selected = languageCode.lowercase() == "en",
-                    onClick = { closeThen { onChangeLanguage("en") } }
-                )
-            }
+            PillListItem(
+                headline = stringResource(R.string.settings_language),
+                supporting = languageLabel,
+                trailing = {
+                    Icon(
+                        imageVector = Icons.Filled.KeyboardArrowDown,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                },
+                onClick = { showLanguagePicker = true }
+            )
 
             HorizontalDivider()
 
-            ListItem(
-                headlineContent = { Text("Versão") },
-                supportingContent = { Text(versionName) }
+            PillListItem(
+                headline = stringResource(R.string.settings_version),
+                supporting = versionName
             )
 
-            TextButton(
-                onClick = {
-                    closeThen { openUrlSafely(context, sourceUrl) }
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Código fonte")
-            }
+            PillButton(
+                text = stringResource(R.string.settings_source_code),
+                onClick = { closeSettingsThen { openUrlSafely(context, sourceUrl) } }
+            )
 
             Spacer(Modifier.height(6.dp))
+        }
+    }
+
+    if (showLanguagePicker) {
+        LanguagePickerBottomSheet(
+            currentCode = langCode,
+            onPick = { picked ->
+                showLanguagePicker = false
+                closeSettingsThen { onChangeLanguage(picked) }
+            },
+            onDismiss = { showLanguagePicker = false }
+        )
+    }
+}
+
+@Composable
+private fun PillListItem(
+    headline: String,
+    supporting: String,
+    trailing: (@Composable () -> Unit)? = null,
+    onClick: (() -> Unit)? = null
+) {
+    val shape = RoundedCornerShape(22.dp)
+    val clickable = if (onClick != null) Modifier.clickable { onClick() } else Modifier
+
+    Surface(
+        shape = shape,
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(clickable)
+    ) {
+        ListItem(
+            headlineContent = { Text(headline) },
+            supportingContent = { Text(supporting, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+            trailingContent = trailing
+        )
+    }
+}
+
+@Composable
+private fun PillButton(
+    text: String,
+    onClick: () -> Unit
+) {
+    val shape = RoundedCornerShape(999.dp)
+    Surface(
+        shape = shape,
+        color = MaterialTheme.colorScheme.primaryContainer,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LanguagePickerBottomSheet(
+    currentCode: String,
+    onPick: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    LaunchedEffect(Unit) { sheetState.show() }
+    val scope = rememberCoroutineScope()
+
+    fun closeThen(action: () -> Unit = {}) {
+        scope.launch {
+            runCatching { sheetState.hide() }
+            onDismiss()
+            action()
+        }
+    }
+
+    fun pick(code: String) {
+        closeThen { onPick(code) }
+    }
+
+    val items = listOf(
+        "pt" to stringResource(R.string.language_pt),
+        "en" to stringResource(R.string.language_en),
+        "es" to stringResource(R.string.language_es),
+        "ru" to stringResource(R.string.language_ru)
+    )
+
+    ModalBottomSheet(
+        onDismissRequest = { closeThen() },
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = stringResource(R.string.settings_language_select),
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.weight(1f)
+                )
+                FilledTonalIconButton(onClick = { closeThen() }) {
+                    Icon(imageVector = Icons.Filled.Close, contentDescription = stringResource(R.string.action_close))
+                }
+            }
+
+            items.forEach { (code, label) ->
+                LanguagePillOption(
+                    title = label,
+                    selected = currentCode == code,
+                    onClick = { pick(code) }
+                )
+            }
+
+            Spacer(Modifier.height(8.dp))
         }
     }
 }
 
 @Composable
-private fun LanguageOption(
+private fun LanguagePillOption(
     title: String,
     selected: Boolean,
     onClick: () -> Unit
 ) {
-    Row(
+    val shape = RoundedCornerShape(999.dp)
+    val bg = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+    val fg = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+
+    Surface(
+        shape = shape,
+        color = bg,
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f), shape)
+            .clickable(onClick = onClick)
     ) {
-        RadioButton(selected = selected, onClick = onClick)
-        Text(
-            text = title,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurface
-        )
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Language,
+                contentDescription = null,
+                tint = fg
+            )
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = fg,
+                modifier = Modifier.weight(1f)
+            )
+            if (selected) {
+                Icon(
+                    imageVector = Icons.Filled.Check,
+                    contentDescription = null,
+                    tint = fg
+                )
+            }
+        }
     }
 }
 
