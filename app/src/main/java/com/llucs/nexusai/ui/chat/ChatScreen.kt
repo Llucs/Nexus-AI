@@ -123,9 +123,9 @@ fun ChatScreen(
     val hasName = trimmedName.isNotEmpty()
     val displayName = trimmedName
     val nameHintPt = if (hasName) "Nome do usuário: $displayName. Sempre chame o usuário de \"$displayName\"." else "O nome do usuário ainda não foi informado. Se precisar, pergunte o nome. Não use \"você\" como nome."
-    val nameHintEn = if (hasName) "User name: $displayName. Always address the user as \"$displayName\"." else "The user\'s name hasn\'t been provided yet. If needed, ask for their name. Do not use \"you\" as a name."
+    val nameHintEn = if (hasName) "User name: $displayName. Always address the user as \"$displayName\"." else "The user's name hasn't been provided yet. If needed, ask for their name. Do not use \"you\" as a name."
 
-val systemPrompt = if (locale == "pt") {
+    val systemPrompt = if (locale == "pt") {
     """
     Oi! Eu sou o Nexus, seu parceiro de aventuras com IA.
 
@@ -157,10 +157,18 @@ val systemPrompt = if (locale == "pt") {
       - For a divider, use a line containing only: ---
       - For code, use fenced blocks with ``` and language (if known).
     - If I don't know something, I'll say so and we’ll find an alternative.
-
-    Call the user: ${displayName}.
     """.trimIndent()
 }
+
+    val finalSystemPrompt = if (hasName) {
+        systemPrompt + "\n\n" + if (locale == "pt") {
+            "Chame o usuário de: ${displayName}."
+        } else {
+            "Call the user: ${displayName}."
+        }
+    } else {
+        systemPrompt
+    }
 
 val greeting = if (locale == "pt") {
     if (userName.isBlank()) "Oi! Eu sou o Nexus AI. Pode perguntar qualquer coisa." else "Oi, ${userName.trim()}! Eu sou o Nexus AI. Pode perguntar qualquer coisa."
@@ -178,7 +186,7 @@ val greeting = if (locale == "pt") {
         factory = ChatViewModel.factory(
             store = store,
             strings = ChatStrings(
-                systemPrompt = systemPrompt,
+                systemPrompt = finalSystemPrompt,
                 greeting = greeting,
                 interrupted = interrupted,
                 genericError = genericError,
@@ -188,6 +196,20 @@ val greeting = if (locale == "pt") {
             )
         )
     )
+
+    LaunchedEffect(finalSystemPrompt, greeting, interrupted, genericError, assistantErrTemplate, snackFailedTemplate, retryAction) {
+        vm.updateStrings(
+            ChatStrings(
+                systemPrompt = finalSystemPrompt,
+                greeting = greeting,
+                interrupted = interrupted,
+                genericError = genericError,
+                assistantErrorTemplate = assistantErrTemplate,
+                snackFailedTemplate = snackFailedTemplate,
+                retryActionLabel = retryAction
+            )
+        )
+    }
 
     val uiState by vm.state.collectAsState()
 
