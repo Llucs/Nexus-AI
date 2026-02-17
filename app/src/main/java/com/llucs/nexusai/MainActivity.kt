@@ -32,25 +32,34 @@ import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
 
-    private fun defaultLanguageCode(): String {
+        private fun defaultLanguageCode(): String {
         val sys = Locale.getDefault().language.lowercase(Locale.ROOT)
-        return if (sys.startsWith("pt")) "pt" else "en"
+        return when {
+            sys.startsWith("pt") -> "pt"
+            sys.startsWith("es") -> "es"
+            sys.startsWith("ru") -> "ru"
+            else -> "en"
+        }
     }
 
-    private fun normalizeLanguage(code: String?): String {
+        private fun normalizeLanguage(code: String?): String {
         val c = (code ?: "").trim().lowercase(Locale.ROOT)
         return when {
             c == "pt" || c.startsWith("pt") -> "pt"
             c == "en" || c.startsWith("en") -> "en"
+            c == "es" || c.startsWith("es") -> "es"
+            c == "ru" || c.startsWith("ru") -> "ru"
             c == "system" || c.isBlank() -> defaultLanguageCode()
             else -> defaultLanguageCode()
         }
     }
 
-    private fun applyLanguage(code: String) {
+        private fun applyLanguage(code: String) {
         val tags = when (code) {
-            "pt" -> "pt"
+            "pt" -> "pt-BR"
             "en" -> "en"
+            "es" -> "es"
+            "ru" -> "ru"
             else -> ""
         }
         val desired = LocaleListCompat.forLanguageTags(tags)
