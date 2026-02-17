@@ -1,5 +1,6 @@
 package com.llucs.nexusai
 
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -58,35 +59,36 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+    installSplashScreen()
+    super.onCreate(savedInstanceState)
+    enableEdgeToEdge()
 
-        setContent {
-            NexusTheme {
-                val context = LocalContext.current
-                val activity = context as? ComponentActivity
-                val scope = rememberCoroutineScope()
+    setContent {
+        NexusTheme {
+            val context = LocalContext.current
+            val activity = context as? ComponentActivity
+            val scope = rememberCoroutineScope()
 
-                val chatStore = remember { ChatStore(context.applicationContext) }
-                val prefs = remember { UserPrefs(context.applicationContext) }
+            val chatStore = remember { ChatStore(context.applicationContext) }
+            val prefs = remember { UserPrefs(context.applicationContext) }
 
-                var prefsLoaded by remember { mutableStateOf(false) }
-                var userName by rememberSaveable { mutableStateOf("") }
-                var nameInput by rememberSaveable { mutableStateOf("") }
-                var languageCode by rememberSaveable { mutableStateOf(defaultLanguageCode()) }
+            var prefsLoaded by remember { mutableStateOf(false) }
+            var userName by rememberSaveable { mutableStateOf("") }
+            var nameInput by rememberSaveable { mutableStateOf("") }
+            var languageCode by rememberSaveable { mutableStateOf(defaultLanguageCode()) }
 
-                LaunchedEffect(Unit) {
-                    val savedName = prefs.getUserName().orEmpty().trim()
-                    val savedLang = normalizeLanguage(prefs.getLanguage())
+            LaunchedEffect(Unit) {
+                val savedName = prefs.getUserName().orEmpty().trim()
+                val savedLang = normalizeLanguage(prefs.getLanguage())
 
-                    languageCode = savedLang
-                    applyLanguage(savedLang)
+                languageCode = savedLang
+                applyLanguage(savedLang)
 
-                    userName = savedName
-                    nameInput = savedName
+                userName = savedName
+                nameInput = savedName
 
-                    prefsLoaded = true
-                }
+                prefsLoaded = true
+            }
 
                 val lang = normalizeLanguage(languageCode)
 
