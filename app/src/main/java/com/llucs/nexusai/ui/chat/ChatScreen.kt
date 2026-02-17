@@ -130,22 +130,22 @@ fun ChatScreen(
     val displayName = trimmedName
         val nameHint = when (locale) {
         "pt" -> if (hasName) {
-            "Nome do usuário: $displayName. Sempre chame o usuário de \"$displayName\"."
+            "Nome do usuário: $displayName. Você pode usar esse nome, mas só quando for natural (não em toda mensagem)."
         } else {
             "O nome do usuário ainda não foi informado. Se precisar, pergunte o nome. Não use \"você\" como nome."
         }
         "es" -> if (hasName) {
-            "Nombre del usuario: $displayName. Llama siempre al usuario \"$displayName\"."
+            "Nombre del usuario: $displayName. Puedes usar ese nombre, pero solo cuando sea natural (no en cada mensaje)."
         } else {
             "El nombre del usuario aún no fue informado. Si hace falta, pregunta el nombre. No uses \"tú\" como nombre."
         }
         "ru" -> if (hasName) {
-            "Имя пользователя: $displayName. Всегда обращайся к пользователю как \"$displayName\"."
+            "Имя пользователя: $displayName. Можешь использовать имя, но только когда это уместно (не в каждом сообщении)."
         } else {
             "Имя пользователя ещё не указано. Если нужно, спроси имя. Не используй «вы» как имя."
         }
         else -> if (hasName) {
-            "User name: $displayName. Always address the user as \"$displayName\"."
+            "User name: $displayName. You may use it, but only when it feels natural (not in every message)."
         } else {
             "The user's name hasn't been provided yet. If needed, ask for their name. Do not use \"you\" as a name."
         }
@@ -223,16 +223,17 @@ fun ChatScreen(
 
     val finalSystemPrompt = if (hasName) {
         systemPrompt + "\n\n" + when (locale) {
-            "pt" -> "Chame o usuário de: $displayName."
-            "es" -> "Llama al usuario: $displayName."
-            "ru" -> "Обращайся к пользователю: $displayName."
-            else -> "Call the user: $displayName."
+            "pt" -> "Nome preferido do usuário: $displayName. Use o nome só quando for natural; não repita em toda resposta."
+            "es" -> "Nombre preferido del usuario: $displayName. Usa el nombre solo cuando sea natural; no lo repitas en cada respuesta."
+            "ru" -> "Предпочтительное имя пользователя: $displayName. Используй имя только когда это уместно; не повторяй в каждом ответе."
+            else -> "User preferred name: $displayName. Use the name only when it feels natural; don't repeat it in every reply."
         }
     } else {
         systemPrompt
     }
 
-    val greeting = when (locale) {
+
+val greeting = when (locale) {
         "pt" -> if (hasName) "Oi, ${displayName}! Eu sou o Nexus AI. Pode perguntar qualquer coisa." else "Oi! Eu sou o Nexus AI. Pode perguntar qualquer coisa."
         "es" -> if (hasName) "¡Hola, ${displayName}! Soy Nexus AI. Pregunta lo que quieras." else "¡Hola! Soy Nexus AI. Pregunta lo que quieras."
         "ru" -> if (hasName) "Привет, ${displayName}! Я Nexus AI. Спрашивай что угодно." else "Привет! Я Nexus AI. Спрашивай что угодно."
@@ -718,56 +719,72 @@ private fun NexusInputBar(
 
     Surface(
         tonalElevation = 2.dp,
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f)
+        color = Color.Transparent
     ) {
+        val top = Color.Transparent
+        val mid = MaterialTheme.colorScheme.surface.copy(alpha = 0.55f)
+        val bottom = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f)
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .navigationBarsPadding()
-                .imePadding()
-                .padding(horizontal = 16.dp, vertical = 10.dp)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(top, mid, bottom)
+                    )
+                )
         ) {
-            TextField(
-                value = input,
-                onValueChange = onInputChange,
+
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 48.dp),
-                enabled = enabled,
-                placeholder = { Text(stringResource(R.string.input_placeholder)) },
-                shape = RoundedCornerShape(999.dp),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                keyboardActions = KeyboardActions(onSend = { if (canSend) onSend() }),
-                maxLines = 6,
-                trailingIcon = {
-                    Surface(
-                        shape = CircleShape,
-                        color = if (canSend) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                    ) {
-                        IconButton(
-                            onClick = { if (canSend) onSend() },
-                            enabled = canSend,
-                            modifier = Modifier.size(40.dp)
+                    .navigationBarsPadding()
+                    .imePadding()
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
+            ) {
+                TextField(
+                    value = input,
+                    onValueChange = onInputChange,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp),
+                    enabled = enabled,
+                    placeholder = { Text(stringResource(R.string.input_placeholder)) },
+                    shape = RoundedCornerShape(999.dp),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                    keyboardActions = KeyboardActions(onSend = { if (canSend) onSend() }),
+                    maxLines = 6,
+                    trailingIcon = {
+                        Surface(
+                            shape = CircleShape,
+                            color = if (canSend) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
                         ) {
-                            Icon(
-                                imageVector = Icons.Filled.Send,
-                                contentDescription = stringResource(R.string.input_send),
-                                tint = if (canSend) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
-                                modifier = Modifier.size(18.dp)
-                            )
+                            IconButton(
+                                onClick = { if (canSend) onSend() },
+                                enabled = canSend,
+                                modifier = Modifier.size(40.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Send,
+                                    contentDescription = stringResource(R.string.input_send),
+                                    tint = if (canSend) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                         }
-                    }
-                },
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
-                    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.18f),
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                    disabledIndicatorColor = Color.Transparent,
-                    cursorColor = MaterialTheme.colorScheme.onSurface
+                    },
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
+                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.18f),
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        disabledIndicatorColor = Color.Transparent,
+                        cursorColor = MaterialTheme.colorScheme.onSurface
+                    )
                 )
-            )
+            }
+    
         }
     }
 }
