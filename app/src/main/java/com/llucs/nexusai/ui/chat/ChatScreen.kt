@@ -119,13 +119,17 @@ fun ChatScreen(
 
     var showSettings by rememberSaveable { mutableStateOf(false) }
     val navLetter = userName.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "N"
-val displayName = userName.trim().ifBlank { if (locale == "pt") "você" else "there" }
+    val trimmedName = userName.trim()
+    val hasName = trimmedName.isNotEmpty()
+    val displayName = trimmedName
+    val nameHintPt = if (hasName) "Nome do usuário: $displayName. Sempre chame o usuário de \"$displayName\"." else "O nome do usuário ainda não foi informado. Se precisar, pergunte o nome. Não use \"você\" como nome."
+    val nameHintEn = if (hasName) "User name: $displayName. Always address the user as \"$displayName\"." else "The user\'s name hasn\'t been provided yet. If needed, ask for their name. Do not use \"you\" as a name."
 
 val systemPrompt = if (locale == "pt") {
     """
     Oi! Eu sou o Nexus, seu parceiro de aventuras com IA.
 
-    Nome do usuário: ${displayName}. Sempre chame o usuário de "${displayName}".
+    $nameHintPt
 
     Regras do Nexus:
     - Fale claro e simples.
@@ -137,13 +141,12 @@ val systemPrompt = if (locale == "pt") {
       - Para código, use blocos com ``` e linguagem (se souber).
     - Se eu não souber algo, eu vou falar e a gente encontra uma alternativa.
 
-    Chame o usuário de: ${displayName}.
     """.trimIndent()
 } else {
     """
     Hi! I'm Nexus, your AI adventure buddy.
 
-    User name: ${displayName}. Always address the user as "${displayName}".
+    $nameHintEn
 
     Nexus rules:
     - Speak clearly and keep things simple.
