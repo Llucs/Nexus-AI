@@ -280,6 +280,7 @@ val greeting = if (locale == "pt") {
 
                     MessageBubble(
                             userLetter = navLetter,
+                            userName = displayName,
                             message = msg,
                         showMeta = showMeta,
                         onCopy = if (msg.role == "assistant" && msg.content.isNotBlank() && !msg.isThinking) {
@@ -449,6 +450,7 @@ private fun cleanAssistantText(s: String): String {
 @Composable
 private fun MessageBubble(
     userLetter: String,
+    userName: String,
     message: UiMessage,
     showMeta: Boolean,
     onCopy: (() -> Unit)?,
@@ -481,7 +483,7 @@ private fun MessageBubble(
                     Spacer(Modifier.width(8.dp))
                 }
                 Text(
-                    text = if (isUser) stringResource(R.string.label_you) else stringResource(R.string.label_assistant),
+                    text = if (isUser) userName else stringResource(R.string.label_assistant),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -862,7 +864,7 @@ private fun SettingsBottomSheet(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "feito por Lucas",
+                        text = "feito por Llucs",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
