@@ -2,6 +2,7 @@ package com.llucs.nexusai.ui
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
@@ -17,39 +18,35 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.shape.RoundedCornerShape
-
-private val BrandPurple = Color(0xFF7C3AED)
-private val BrandPurpleDark = Color(0xFF8B5CF6)
-private val BrandTeal = Color(0xFF22C55E)
-private val BrandPink = Color(0xFFEC4899)
 
 private val LightScheme = lightColorScheme(
-    primary = BrandPurple,
+    primary = Color(0xFF111113),
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFEDE4FF),
-    onPrimaryContainer = Color(0xFF21005D),
+    primaryContainer = Color(0xFFE9E9EE),
+    onPrimaryContainer = Color(0xFF111113),
 
-    secondary = BrandTeal,
-    onSecondary = Color(0xFF05210F),
-    secondaryContainer = Color(0xFFD5FDE4),
-    onSecondaryContainer = Color(0xFF062114),
+    secondary = Color(0xFF2A2A2F),
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFFE2E2E8),
+    onSecondaryContainer = Color(0xFF111113),
 
-    tertiary = BrandPink,
+    tertiary = Color(0xFF4A4A52),
     onTertiary = Color.White,
-    tertiaryContainer = Color(0xFFFFD8E8),
-    onTertiaryContainer = Color(0xFF3B001E),
+    tertiaryContainer = Color(0xFFE5E5EA),
+    onTertiaryContainer = Color(0xFF111113),
 
-    background = Color(0xFFF8F7FB),
-    onBackground = Color(0xFF1B1B1F),
+    background = Color(0xFFF7F7F8),
+    onBackground = Color(0xFF111113),
 
     surface = Color(0xFFFFFFFF),
-    onSurface = Color(0xFF1B1B1F),
+    onSurface = Color(0xFF111113),
 
-    surfaceVariant = Color(0xFFE9E6EF),
-    onSurfaceVariant = Color(0xFF49454F),
+    surfaceVariant = Color(0xFFF0F0F2),
+    onSurfaceVariant = Color(0xFF3A3A40),
 
-    outline = Color(0xFF79747E),
+    outline = Color(0xFFCDCDD2),
+    outlineVariant = Color(0xFFE3E3E8),
+
     error = Color(0xFFB3261E),
     onError = Color.White,
     errorContainer = Color(0xFFF9DEDC),
@@ -57,31 +54,33 @@ private val LightScheme = lightColorScheme(
 )
 
 private val DarkScheme = darkColorScheme(
-    primary = BrandPurpleDark,
-    onPrimary = Color(0xFF1B0B2A),
-    primaryContainer = Color(0xFF2A1741),
-    onPrimaryContainer = Color(0xFFEDE4FF),
+    primary = Color(0xFFFFFFFF),
+    onPrimary = Color(0xFF0B0B0C),
+    primaryContainer = Color(0xFF232327),
+    onPrimaryContainer = Color(0xFFFFFFFF),
 
-    secondary = BrandTeal,
-    onSecondary = Color(0xFF05210F),
-    secondaryContainer = Color(0xFF0B2B19),
-    onSecondaryContainer = Color(0xFFD5FDE4),
+    secondary = Color(0xFFE5E5EA),
+    onSecondary = Color(0xFF0B0B0C),
+    secondaryContainer = Color(0xFF1C1C20),
+    onSecondaryContainer = Color(0xFFEDEDF2),
 
-    tertiary = BrandPink,
-    onTertiary = Color(0xFF2A0014),
-    tertiaryContainer = Color(0xFF3B001E),
-    onTertiaryContainer = Color(0xFFFFD8E8),
+    tertiary = Color(0xFFBDBDC6),
+    onTertiary = Color(0xFF0B0B0C),
+    tertiaryContainer = Color(0xFF1C1C20),
+    onTertiaryContainer = Color(0xFFEDEDF2),
 
-    background = Color(0xFF0C0B10),
-    onBackground = Color(0xFFE6E1E5),
+    background = Color(0xFF0B0B0C),
+    onBackground = Color(0xFFEDEDF2),
 
-    surface = Color(0xFF121117),
-    onSurface = Color(0xFFE6E1E5),
+    surface = Color(0xFF111113),
+    onSurface = Color(0xFFEDEDF2),
 
-    surfaceVariant = Color(0xFF1E1B26),
-    onSurfaceVariant = Color(0xFFCAC4D0),
+    surfaceVariant = Color(0xFF1A1A1E),
+    onSurfaceVariant = Color(0xFFCFCFD8),
 
-    outline = Color(0xFF948F99),
+    outline = Color(0xFF34343A),
+    outlineVariant = Color(0xFF25252A),
+
     error = Color(0xFFFF5449),
     onError = Color.White,
     errorContainer = Color(0xFF4D2424),
@@ -132,7 +131,7 @@ private val ExpressiveTypography = Typography(
 @Composable
 fun NexusTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme: ColorScheme = when {
