@@ -1,0 +1,56 @@
+<resources>
+    <string name="app_name">Nexus</string>
+    <string name="developer_name">Llucs</string>
+
+    <string name="topbar_title">Nexus AI</string>
+    <string name="topbar_subtitle">Tu espacio de IA</string>
+
+    <string name="action_history">Historial</string>
+    <string name="action_new_chat">Nuevo chat</string>
+    <string name="action_stop">Detener</string>
+    <string name="action_copy">Copiar</string>
+    <string name="action_close">Cerrar</string>
+
+    <string name="label_you">Tú</string>
+    <string name="label_assistant">Nexus</string>
+    <string name="label_typing">Escribiendo</string>
+
+    <string name="input_placeholder">Pregunta a Nexus AI</string>
+    <string name="input_send">Enviar</string>
+
+    <string name="snack_copied">Copiado ✓</string>
+    <string name="snack_retry">Reintentar</string>
+    <string name="generic_error">Error</string>
+    <string name="assistant_error_template">Error: %1$s</string>
+    <string name="snack_failed_template">Falló: %1$s</string>
+
+    <string name="history_title">Historial de chats</string>
+    <string name="history_search">Buscar chats</string>
+    <string name="history_empty">Aún no hay chats guardados.</string>
+    <string name="history_close">Cerrar</string>
+    <string name="history_clear_all">Borrar todo</string>
+    <string name="history_delete_chat">Eliminar chat</string>
+    <string name="history_messages_count">%1$d mensajes</string>
+    <string name="history_new_chat">(nuevo chat)</string>
+    <string name="history_untitled">(sin título)</string>
+
+    <string name="confirm_clear_title">¿Borrar todo el historial?</string>
+    <string name="confirm_clear_text">Esto eliminará todos los chats guardados en este dispositivo.</string>
+    <string name="confirm_cancel">Cancelar</string>
+    <string name="confirm_delete">Eliminar</string>
+
+    <string name="msg_interrupted">Interrumpido.</string>
+
+    <string name="settings_made_by">hecho por %1$s</string>
+    <string name="settings_name">Nombre</string>
+    <string name="settings_language">Idioma</string>
+    <string name="settings_language_select">Seleccionar idioma</string>
+    <string name="settings_version">Versión</string>
+    <string name="settings_source_code">Código fuente</string>
+    <string name="settings_not_set">No definido</string>
+
+    <string name="language_pt">Portugués</string>
+    <string name="language_en">Inglés</string>
+    <string name="language_es">Español</string>
+    <string name="language_ru">Ruso</string>
+</resources>
