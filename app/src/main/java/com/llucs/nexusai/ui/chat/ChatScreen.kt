@@ -221,9 +221,7 @@ fun ChatScreen(
     }
 
     val finalSystemPrompt = if (hasName) {
-        systemPrompt + "
-
-" + when (locale) {
+        systemPrompt + "\n\n" + when (locale) {
             "pt" -> "Chame o usuário de: $displayName."
             "es" -> "Llama al usuario: $displayName."
             "ru" -> "Обращайся к пользователю: $displayName."
