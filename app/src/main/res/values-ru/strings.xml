@@ -53,4 +53,19 @@
     <string name="language_en">Английский</string>
     <string name="language_es">Испанский</string>
     <string name="language_ru">Русский</string>
+    <string name="settings_memories_title">Память</string>
+    <string name="settings_memories_auto_save">Автосохранение памяти</string>
+    <string name="settings_memories_auto_save_desc">Разрешить ИИ автоматически сохранять полезные воспоминания</string>
+    <string name="settings_memories_manage">Управление памятью</string>
+    <string name="settings_memories_manage_desc">Просмотреть, добавить или удалить сохранённые воспоминания</string>
+    <string name="memories_title">Память</string>
+    <string name="memories_desc">Сохранённые заметки, которые ИИ может использовать позже (только если Память включена).</string>
+    <string name="memories_add_hint">Введите воспоминание для сохранения…</string>
+    <string name="memories_save_manual">Сохранить</string>
+    <string name="memories_clear_all">Очистить всё</string>
+    <string name="memories_empty">Пока нет сохранённых воспоминаний.</string>
+    <string name="memories_empty_short">Нет воспоминаний</string>
+    <string name="memories_count_template">Сохранено: %1$d</string>
+    <string name="memory_saved_template">Память сохранена: %1$s</string>
+    <string name="action_delete">Удалить</string>
 </resources>
