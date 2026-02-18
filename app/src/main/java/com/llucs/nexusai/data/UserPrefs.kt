@@ -3,6 +3,7 @@ package com.llucs.nexusai.data
 import android.content.Context
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.first
 
@@ -12,6 +13,9 @@ class UserPrefs(private val context: Context) {
 
     private val keyUserName = stringPreferencesKey("user_name")
     private val keyLanguage = stringPreferencesKey("language")
+
+    private val keyMemoriesEnabled = booleanPreferencesKey("memories_enabled")
+    private val keyMemoryAutoSave = booleanPreferencesKey("memories_auto_save")
 
     suspend fun getUserName(): String? {
         val prefs = context.userDataStore.data.first()
@@ -32,5 +36,23 @@ class UserPrefs(private val context: Context) {
         context.userDataStore.edit { p ->
             if (lang.isNullOrBlank()) p.remove(keyLanguage) else p[keyLanguage] = lang
         }
+    }
+
+    suspend fun getMemoriesEnabled(defaultValue: Boolean = true): Boolean {
+        val prefs = context.userDataStore.data.first()
+        return prefs[keyMemoriesEnabled] ?: defaultValue
+    }
+
+    suspend fun setMemoriesEnabled(enabled: Boolean) {
+        context.userDataStore.edit { it[keyMemoriesEnabled] = enabled }
+    }
+
+    suspend fun getMemoryAutoSaveEnabled(defaultValue: Boolean = true): Boolean {
+        val prefs = context.userDataStore.data.first()
+        return prefs[keyMemoryAutoSave] ?: defaultValue
+    }
+
+    suspend fun setMemoryAutoSaveEnabled(enabled: Boolean) {
+        context.userDataStore.edit { it[keyMemoryAutoSave] = enabled }
     }
 }
