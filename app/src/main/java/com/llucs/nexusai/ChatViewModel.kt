@@ -9,11 +9,11 @@ import com.llucs.nexusai.data.StoredChat
 import com.llucs.nexusai.data.StoredMessage
 import com.llucs.nexusai.net.PollinationsClient
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import java.util.Locale
 import java.util.UUID
 
@@ -32,11 +32,27 @@ class ChatViewModel(
     private var pendingMemorySavedNote: String? = null
     // Marker that the assistant can output to save a memory (kept hidden from chat UI).
     // IMPORTANT: this must be on its OWN line, and ideally at the very end of the message.
-    private val memorySaveRegex = Regex(
-        """<<\s*MEMORY_SAVE\s*:\s*(.*?)\s*>>""",
-        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
-    )
-    private val memorySaveStartRegex = Regex("""<<\s*MEMORY_SAVE\s*:""", RegexOption.IGNORE_CASE)
+    private val memorySaveRegex = Regex("""(?m)^[\t ]*<<\s*MEMORY_SAVE\s*:\s*(.+?)\s*>>\s*$""")
+
+    private val memoryInlineRegex = Regex("""<<\s*MEMORY_SAVE\s*:\s*(.+?)\s*>>""")
+
+    private fun stripMemoryCommandsStreaming(text: String): Pair<String, List<String>> {
+        // Remove any COMPLETE memory markers, and also hide a PARTIAL marker while streaming.
+        var t = text
+        val (cleaned, mems) = stripMemoryCommands(t)
+        t = cleaned
+
+        val start = t.indexOf("<<MEMORY_SAVE")
+        if (start != -1) {
+            val end = t.indexOf(">>", start)
+            if (end == -1) {
+                // If the model started outputting the marker but hasn't closed it yet, hide it.
+                t = t.substring(0, start).trimEnd()
+            }
+        }
+        return t to mems
+    }
+
 
     fun updateMemorySettings(memoriesEnabled: Boolean, autoSaveEnabled: Boolean) {
         this.memoriesEnabled = memoriesEnabled
@@ -61,74 +77,75 @@ class ChatViewModel(
         return t
     }
 
+    
     private fun extractPersonalMemoriesFromUser(userText: String): List<String> {
         val t = userText.trim()
         if (t.isBlank()) return emptyList()
 
-        val mems = mutableListOf<String>()
+        val out = mutableListOf<String>()
 
-        // Age (Portuguese): "eu tenho 13 anos"
-        Regex("""(?i)\b(eu\s+)?tenho\s+(\d{1,2})\s+anos\b""").find(t)?.let { m ->
-            val age = m.groupValues.getOrNull(2)?.toIntOrNull()
-            if (age != null && age in 5..120) mems.add("Usuário tem $age anos.")
-        }
-
-        // Birthday (Portuguese): "meu aniversário é dia 10 de agosto"
-        Regex("""(?i)\b(meu\s+aniversa[rí]o|aniversa[rí]o)\s*(é|eh)?\s*(dia)?\s*(\d{1,2})\s*(de)?\s*([a-zçãáéíóú]+)\b""")
+        // Age: "eu tenho 13 anos"
+        Regex("""\b(eu\s+tenho|tenho)\s+(\d{1,3})\s+anos\b""", RegexOption.IGNORE_CASE)
             .find(t)?.let { m ->
-                val day = m.groupValues.getOrNull(4)?.toIntOrNull()
-                val month = m.groupValues.getOrNull(6)?.trim().orEmpty()
-                if (day != null && day in 1..31 && month.isNotBlank()) {
-                    mems.add("Aniversário do usuário é $day de $month.")
+                val age = m.groupValues.getOrNull(2).orEmpty()
+                age.toIntOrNull()?.let { a ->
+                    if (a in 3..120) out.add("O usuário tem $a anos.")
                 }
             }
 
-        // Location hints (Portuguese): "eu moro em Natal, RN"
-        Regex("""(?i)\b(eu\s+)?moro\s+em\s+([^\n\r]{3,80})""").find(t)?.let { m ->
-            val loc = cleanMemoryText(m.groupValues.getOrNull(2).orEmpty())
-            if (loc.isNotBlank()) mems.add("Usuário mora em $loc.")
-        }
+        // Name: "meu nome é Lucas"
+        Regex("""\bmeu\s+nome\s+(é|eh)\s+([\p{L}][\p{L}\s.'-]{1,40})""", RegexOption.IGNORE_CASE)
+            .find(t)?.let { m ->
+                val name = m.groupValues.getOrNull(2).orEmpty().trim()
+                if (name.isNotBlank()) out.add("O usuário se chama $name.")
+            }
 
-        return mems.distinct()
+        // Location: "eu moro em Natal" / "moro em ..."
+        Regex("""\b(eu\s+)?moro\s+em\s+([^\n,.]{2,60})""", RegexOption.IGNORE_CASE)
+            .find(t)?.let { m ->
+                val loc = m.groupValues.getOrNull(2).orEmpty().trim()
+                if (loc.isNotBlank()) out.add("O usuário mora em $loc.")
+            }
+
+        return out
+            .map { cleanMemoryText(it) }
+            .filter { it.isNotBlank() }
+            .distinctBy { it.lowercase() }
     }
 
-    private fun stripMemoryCommands(text: String): Pair<String, List<String>> {
-        if (!text.contains("MEMORY_SAVE", ignoreCase = true)) return text to emptyList()
+private fun stripMemoryCommands(text: String): Pair<String, List<String>> {
+        if (!text.contains("MEMORY_SAVE")) return text to emptyList()
 
         val mems = mutableListOf<String>()
-        // Extract every complete marker anywhere in the text.
-        val cleaned = memorySaveRegex.replace(text) { match ->
-            val raw = match.groupValues.getOrNull(1).orEmpty()
-            val mem = cleanMemoryText(raw)
+
+        // 1) Extract any inline markers: <<MEMORY_SAVE: ...>>
+        memoryInlineRegex.findAll(text).forEach { m ->
+            val mem = cleanMemoryText(m.groupValues.getOrNull(1).orEmpty())
             if (mem.isNotBlank()) mems.add(mem)
-            "" // remove marker from visible text
         }
 
-        // Tidy up whitespace/newlines after removing markers.
-        val tidy = cleaned
-            .replace(Regex("""[\t ]+"""), " ")
-            .replace(Regex("""\n{3,}"""), "\n\n")
-            .replace(Regex("""[ ]+\n"""), "\n")
-            .replace(Regex("""\n[ ]+"""), "\n")
-            .trimEnd()
-
-        return tidy to mems.distinct()
-    }
-
-    private fun stripMemoryCommandsStreaming(text: String): String {
-        // Remove complete markers.
-        var out = stripMemoryCommands(text).first
-
-        // Also hide an *incomplete* marker tail while streaming (so it never flashes on screen).
-        val start = memorySaveStartRegex.find(out)?.range?.first
-        if (start != null) {
-            val tail = out.substring(start)
-            if (!tail.contains(">>")) {
-                out = out.substring(0, start).trimEnd()
+        // 2) Also support the strict "marker on its own line" format.
+        // (If the model outputs both, distinct() below will de-dup.)
+        for (line in text.lines()) {
+            val m = memorySaveRegex.matchEntire(line)
+            if (m != null) {
+                val mem = cleanMemoryText(m.groupValues.getOrNull(1).orEmpty())
+                if (mem.isNotBlank()) mems.add(mem)
             }
         }
-        return out
-    }
+
+        // 3) Remove markers from visible text.
+        var cleaned = text.replace(memoryInlineRegex, "")
+        // If there's a raw line marker, remove it too.
+        cleaned = cleaned.lines().filter { memorySaveRegex.matchEntire(it) == null }.joinToString("\n")
+
+        // Cleanup leftover whitespace / blank lines.
+        cleaned = cleaned
+            .replace(Regex("""[ \t]+\n"""), "\n")
+            .replace(Regex("""\n{3,}"""), "\n\n")
+            .trimEnd()
+
+        return cleaned to mems.distinctBy { it.lowercase() }
     }
 
 
@@ -252,6 +269,12 @@ class ChatViewModel(
 
         lastUserMessageForRetry = text
 
+        val baseMessages = buildList {
+            add(UiMessage("system", strings.systemPrompt))
+            addAll(_state.value.messages.filter { it.role != "system" })
+            add(UiMessage("user", text))
+        }
+
         val visible = _state.value.messages +
             UiMessage("user", text) +
             UiMessage("assistant", "", isThinking = true)
@@ -262,57 +285,31 @@ class ChatViewModel(
             sending = true
         )
 
-        // Capture where the placeholder assistant message lives (so we update the right bubble, even if chats change).
+        
+        // Auto-extract personal memories from the USER message (so user doesn't need to ask).
+        if (memoriesEnabled && memoryAutoSaveEnabled && memoryStore != null) {
+            val extractedFromUser = extractPersonalMemoriesFromUser(text)
+            if (extractedFromUser.isNotEmpty()) {
+                viewModelScope.launch {
+                    extractedFromUser.forEach { mem -> runCatching { memoryStore.addMemory(mem) } }
+                }
+                pendingMemorySavedNote = extractedFromUser.joinToString(" • ")
+            }
+        }
+
+// Capture where the placeholder assistant message lives (so we update the right bubble, even if chats change).
         val chatId = _state.value.currentChatId
         val assistantIndex = _state.value.messages.lastIndex
 
         runningJob = viewModelScope.launch {
             try {
                 var acc = ""
-                // Auto-save personal info from the USER message (more reliable than asking the model).
-                if (memoriesEnabled && memoryAutoSaveEnabled && memoryStore != null) {
-                    val userMems = extractPersonalMemoriesFromUser(text)
-                    if (userMems.isNotEmpty()) {
-                        userMems.forEach { mem -> runCatching { memoryStore.addMemory(mem) } }
-                        pendingMemorySavedNote = userMems.joinToString(" • ")
-                    }
-                }
-
-                val system = buildString {
-                    append(strings.systemPrompt)
-                    append("\n\nVocê está no app Nexus/Nexus AI, criado por Llucs (Leandro Lucas Mendes de Souza).")
-                    if (memoriesEnabled && memoryStore != null) {
-                        append("\n\nQuando o usuário disser uma informação pessoal estável (ex.: idade, preferências, aniversário, localização, nome), você PODE salvar isso como uma memória.")
-                        append("\nPara salvar, inclua NO FINAL da sua resposta uma linha (somente essa linha) no formato: <<MEMORY_SAVE: ...>>")
-                        append("\nNunca coloque o marcador no meio do texto. Nunca inclua markdown, números ou símbolos desnecessários dentro da memória.")
-                    }
-                }
-
-                val memContext = if (memoriesEnabled && memoryStore != null) {
-                    runCatching { memoryStore.loadMemories() }.getOrDefault(emptyList())
-                } else emptyList()
-
-                val requestMessages = buildList {
-                    add(UiMessage("system", system))
-                    if (memContext.isNotEmpty()) {
-                        add(
-                            UiMessage(
-                                "system",
-                                "Memórias salvas do usuário (use para personalizar, sem mencionar se não for relevante):\n- " +
-                                    memContext.joinToString("\n- ")
-                            )
-                        )
-                    }
-                    addAll(_state.value.messages.filter { it.role != "system" })
-                    add(UiMessage("user", text))
-                }
-
-                client.stream(requestMessages.map { UiMessage(it.role, it.content) }) { chunk ->
+                client.stream(baseMessages.map { UiMessage(it.role, it.content) }) { chunk ->
                     if (!isActive) return@stream
                     if (chunk.isBlank()) return@stream
                     acc += chunk
                     // Hide any full memory markers while streaming.
-                    val display = stripMemoryCommandsStreaming(acc)
+                    val display = stripMemoryCommandsStreaming(acc).first
                     replaceAssistantAt(chatId, assistantIndex, display)
                 }
 
@@ -326,15 +323,22 @@ class ChatViewModel(
                     savedNote = extracted.joinToString(" • ")
                 }
 
-                val combinedNote = listOfNotNull(savedNote, pendingMemorySavedNote)
-                    .joinToString(" • ")
-                    .trim()
-                    .ifBlank { null }
+                // If we already saved something from the USER message, attach that note here (only for this reply).
+                val pending = pendingMemorySavedNote
                 pendingMemorySavedNote = null
+                val combinedNote = listOfNotNull(savedNote, pending)
+                    .flatMap { it.split(" • ").map { s -> s.trim() }.filter { s -> s.isNotBlank() } }
+                    .distinctBy { it.lowercase() }
+                    .takeIf { it.isNotEmpty() }
+                    ?.joinToString(" • ")
 
-                // Update last assistant with cleaned content and a temporary note (so UI can show “Memory saved”).
-                replaceAssistantAt(chatId, assistantIndex, cleaned, memorySaved = combinedNote)
-                if (combinedNote != null) scheduleClearMemorySaved(chatId, assistantIndex, combinedNote)
+                // Update last assistant with cleaned content and a note (so UI can show “Memory saved”).
+replaceAssistantAt(chatId, assistantIndex, cleaned, memorySaved = combinedNote)
+
+                // Make the note temporary (show only for a moment under this message).
+                if (!combinedNote.isNullOrBlank()) {
+                    scheduleClearMemorySaved(chatId, assistantIndex, combinedNote)
+                }
 
                 _state.value = _state.value.copy(sending = false)
                 persist()
@@ -379,22 +383,24 @@ class ChatViewModel(
     }
 
     
-    private 
+    
     private fun scheduleClearMemorySaved(chatId: String, index: Int, note: String) {
         viewModelScope.launch {
             delay(2500)
+            // Only clear if we're still on the same chat and the same message still has the same note.
             if (_state.value.currentChatId != chatId) return@launch
-            val updated = _state.value.messages.toMutableList()
-            if (index < 0 || index >= updated.size) return@launch
-            val msg = updated[index]
+            val msgs = _state.value.messages.toMutableList()
+            if (index < 0 || index >= msgs.size) return@launch
+            val msg = msgs[index]
             if (msg.role != "assistant") return@launch
             if (msg.memorySaved != note) return@launch
-            updated[index] = msg.copy(memorySaved = null)
-            _state.value = _state.value.copy(messages = updated)
+            msgs[index] = msg.copy(memorySaved = null)
+            _state.value = _state.value.copy(messages = msgs)
+            persist()
         }
     }
 
-fun replaceAssistantAt(
+private fun replaceAssistantAt(
         chatId: String,
         index: Int,
         content: String,
@@ -408,9 +414,8 @@ fun replaceAssistantAt(
         if (index < 0 || index >= updated.size) return
         if (updated[index].role != "assistant") return
 
-        val current = updated[index]
-
-        updated[index] = current.copy(
+        updated[index] = UiMessage(
+            role = "assistant",
             content = content,
             isThinking = isThinking,
             memorySaved = memorySaved
