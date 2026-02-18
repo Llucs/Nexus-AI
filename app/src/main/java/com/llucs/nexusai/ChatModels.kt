@@ -3,7 +3,9 @@ package com.llucs.nexusai
 data class UiMessage(
     val role: String,
     val content: String,
-    val isThinking: Boolean = false
+    val isThinking: Boolean = false,
+    // When the assistant saves a memory, we show a small note under the message.
+    val memorySaved: String? = null
 )
 
 data class SnackbarEvent(
