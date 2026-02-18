@@ -65,6 +65,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextButton
@@ -99,6 +100,8 @@ import com.llucs.nexusai.ChatViewModel
 import com.llucs.nexusai.R
 import com.llucs.nexusai.UiMessage
 import com.llucs.nexusai.data.ChatStore
+import com.llucs.nexusai.data.UserPrefs
+import com.llucs.nexusai.data.MemoryStore
 import com.llucs.nexusai.data.StoredChat
 import kotlinx.coroutines.launch
 import com.llucs.nexusai.MarkdownTextBlock
@@ -113,6 +116,8 @@ import androidx.compose.material.icons.filled.Language
 @Composable
 fun ChatScreen(
     store: ChatStore,
+    prefs: UserPrefs,
+    memoryStore: MemoryStore,
     userName: String,
     languageCode: String,
     onEditName: () -> Unit,
@@ -122,6 +127,12 @@ fun ChatScreen(
     val context = LocalContext.current
 
     val locale = languageCode.lowercase()
+
+    var memoriesEnabled by rememberSaveable { mutableStateOf(true) }
+    var memoryAutoSaveEnabled by rememberSaveable { mutableStateOf(true) }
+    var memories by remember { mutableStateOf<List<String>>(emptyList()) }
+    var showMemoriesManager by rememberSaveable { mutableStateOf(false) }
+
 
     var showSettings by rememberSaveable { mutableStateOf(false) }
     val navLetter = userName.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "N"
@@ -151,11 +162,56 @@ fun ChatScreen(
         }
     }
 
+
+    val appIdentity = when (locale) {
+        "pt" -> "Você está no app Nexus / Nexus AI. Ele foi criado por Llucs (Leandro Lucas Mendes de Souza)."
+        "es" -> "Estás en la app Nexus / Nexus AI. Fue creada por Llucs (Leandro Lucas Mendes de Souza)."
+        "ru" -> "Вы находитесь в приложении Nexus / Nexus AI. Оно создано Llucs (Leandro Lucas Mendes de Souza)."
+        else -> "You are in the Nexus / Nexus AI app. It was created by Llucs (Leandro Lucas Mendes de Souza)."
+    }
+
+    val memoriesBlock = if (memoriesEnabled && memories.isNotEmpty()) {
+        val list = memories.take(30).joinToString("\n") { "- $it" }
+        when (locale) {
+            "pt" -> "Memórias salvas do usuário (use só quando ajudar):\n$list"
+            "es" -> "Memorias guardadas del usuario (úsalas solo cuando ayuden):\n$list"
+            "ru" -> "Сохранённые воспоминания пользователя (используй только когда полезно):\n$list"
+            else -> "Saved user memories (use only when helpful):\n$list"
+        }
+    } else if (!memoriesEnabled) {
+        when (locale) {
+            "pt" -> "Memórias estão DESATIVADAS: não salve memórias e não use memórias antigas."
+            "es" -> "Las memorias están DESACTIVADAS: no guardes memorias ni uses memorias anteriores."
+            "ru" -> "Память ОТКЛЮЧЕНА: не сохраняй и не используй старые воспоминания."
+            else -> "Memories are DISABLED: don't save memories and don't use old memories."
+        }
+    } else ""
+
+    val memorySaveRules = when {
+        !memoriesEnabled -> ""
+        memoriesEnabled && memoryAutoSaveEnabled -> when (locale) {
+            "pt" -> "Se você aprender algo que vale guardar como memória, no FIM da mensagem (em uma linha separada), escreva: <<MEMORY_SAVE: ...>>. Seja curto. Não explique esse marcador."
+            "es" -> "Si aprendes algo que vale guardar como memoria, AL FINAL del mensaje (en una línea separada), escribe: <<MEMORY_SAVE: ...>>. Sé breve. No expliques ese marcador."
+            "ru" -> "Если узнаешь что-то, что стоит сохранить, В КОНЦЕ сообщения (отдельной строкой) напиши: <<MEMORY_SAVE: ...>>. Кратко. Не объясняй этот маркер."
+            else -> "If you learn something worth saving as a memory, at the END of your message (on its own line) write: <<MEMORY_SAVE: ...>>. Keep it short. Don't explain the marker."
+        }
+        else -> when (locale) {
+            "pt" -> "Não use marcadores de memória (auto-salvar está desligado)."
+            "es" -> "No uses marcadores de memoria (auto-guardar está desactivado)."
+            "ru" -> "Не используй маркеры памяти (автосохранение выключено)."
+            else -> "Don't use memory markers (auto-save is off)."
+        }
+    }
+
     val systemPrompt = when (locale) {
         "pt" -> """
             Oi! Eu sou o Nexus AI.
 
             $nameHint
+
+            $appIdentity
+
+            ${if (memoriesBlock.isNotBlank()) memoriesBlock + "\n\n" else ""}$memorySaveRules
 
             Regras do Nexus:
             - Fale claro e simples.
@@ -174,6 +230,10 @@ fun ChatScreen(
 
             $nameHint
 
+            $appIdentity
+
+            ${if (memoriesBlock.isNotBlank()) memoriesBlock + "\n\n" else ""}$memorySaveRules
+
             Reglas:
             - Habla claro y simple.
             - Ve directo al punto.
@@ -191,6 +251,10 @@ fun ChatScreen(
 
             $nameHint
 
+            $appIdentity
+
+            ${if (memoriesBlock.isNotBlank()) memoriesBlock + "\n\n" else ""}$memorySaveRules
+
             Правила:
             - Пиши ясно и просто.
             - Сразу к делу.
@@ -207,6 +271,10 @@ fun ChatScreen(
             Hi! I'm Nexus AI.
 
             $nameHint
+
+            $appIdentity
+
+            ${if (memoriesBlock.isNotBlank()) memoriesBlock + "\n\n" else ""}$memorySaveRules
 
             Rules:
             - Speak clearly and keep it simple.
@@ -249,6 +317,7 @@ val greeting = when (locale) {
     val vm: ChatViewModel = viewModel(
         factory = ChatViewModel.factory(
             store = store,
+            memoryStore = memoryStore,
             strings = ChatStrings(
                 systemPrompt = finalSystemPrompt,
                 greeting = greeting,
@@ -277,10 +346,30 @@ val greeting = when (locale) {
 
     val uiState by vm.state.collectAsState()
 
+    LaunchedEffect(memoriesEnabled, memoryAutoSaveEnabled) {
+        vm.updateMemorySettings(memoriesEnabled, memoryAutoSaveEnabled)
+    }
+
+    // When the assistant saves a memory, reload the list so the settings screen stays updated.
+    LaunchedEffect(uiState.messages.lastOrNull()?.memorySaved) {
+        if (!uiState.messages.lastOrNull()?.memorySaved.isNullOrBlank()) {
+            runCatching { memories = memoryStore.loadMemories() }
+        }
+    }
+
+
     val clipboard = LocalClipboardManager.current
     val snackbarHostState = remember { SnackbarHostState() }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        runCatching { memoriesEnabled = prefs.getMemoriesEnabled(true) }
+        runCatching { memoryAutoSaveEnabled = prefs.getMemoryAutoSaveEnabled(true) }
+        runCatching { memories = memoryStore.loadMemories() }
+    }
+
+
 
     val copiedText = stringResource(R.string.snack_copied)
 
@@ -421,6 +510,20 @@ if (showSettings) {
     SettingsBottomSheet(
         userName = userName,
         languageCode = locale,
+        memoriesEnabled = memoriesEnabled,
+        memoryAutoSaveEnabled = memoryAutoSaveEnabled,
+        memoriesCount = memories.size,
+        onToggleMemoriesEnabled = { enabled ->
+            memoriesEnabled = enabled
+            scope.launch { prefs.setMemoriesEnabled(enabled) }
+        },
+        onToggleMemoryAutoSave = { enabled ->
+            memoryAutoSaveEnabled = enabled
+            scope.launch { prefs.setMemoryAutoSaveEnabled(enabled) }
+        },
+        onOpenMemoriesManager = {
+            showMemoriesManager = true
+        },
         onEditName = {
             showSettings = false
             onEditName()
@@ -433,6 +536,31 @@ if (showSettings) {
         onDismiss = { showSettings = false }
     )
 }
+
+    if (showMemoriesManager) {
+        MemoriesManagerBottomSheet(
+            memories = memories,
+            onAdd = { mem ->
+                scope.launch {
+                    memoryStore.addMemory(mem)
+                    memories = memoryStore.loadMemories()
+                }
+            },
+            onDeleteAt = { idx ->
+                scope.launch {
+                    memoryStore.removeAt(idx)
+                    memories = memoryStore.loadMemories()
+                }
+            },
+            onClearAll = {
+                scope.launch {
+                    memoryStore.clearAll()
+                    memories = emptyList()
+                }
+            },
+            onDismiss = { showMemoriesManager = false }
+        )
+    }
 
 }
 
@@ -644,9 +772,33 @@ private fun MessageBubble(
                 }
             }
         }
+
+        if (!isUser && !message.isThinking && !message.memorySaved.isNullOrBlank()) {
+            Spacer(Modifier.height(6.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .widthIn(max = 520.dp)
+                    .padding(horizontal = 6.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Check,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = stringResource(R.string.memory_saved_template, message.memorySaved!!),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
     }
 }
-
 
 @Composable
 private fun AvatarDot(bg: Color, fg: Color, letter: String) {
@@ -938,6 +1090,12 @@ private fun HistoryBottomSheet(
 private fun SettingsBottomSheet(
     userName: String,
     languageCode: String,
+    memoriesEnabled: Boolean,
+    memoryAutoSaveEnabled: Boolean,
+    memoriesCount: Int,
+    onToggleMemoriesEnabled: (Boolean) -> Unit,
+    onToggleMemoryAutoSave: (Boolean) -> Unit,
+    onOpenMemoriesManager: () -> Unit,
     onEditName: () -> Unit,
     onChangeLanguage: (String) -> Unit,
     sourceUrl: String,
@@ -947,6 +1105,7 @@ private fun SettingsBottomSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     LaunchedEffect(Unit) { sheetState.show() }
     val scope = rememberCoroutineScope()
+
 
     var showLanguagePicker by remember { mutableStateOf(false) }
 
@@ -1033,6 +1192,44 @@ private fun SettingsBottomSheet(
             HorizontalDivider()
 
             PillListItem(
+                headline = stringResource(R.string.settings_memories_title),
+                supporting = if (memoriesCount > 0)
+                    stringResource(R.string.memories_count_template, memoriesCount)
+                else
+                    stringResource(R.string.memories_empty_short),
+                trailing = {
+                    Switch(
+                        checked = memoriesEnabled,
+                        onCheckedChange = onToggleMemoriesEnabled
+                    )
+                },
+                onClick = { onToggleMemoriesEnabled(!memoriesEnabled) }
+            )
+
+            PillListItem(
+                headline = stringResource(R.string.settings_memories_auto_save),
+                supporting = stringResource(R.string.settings_memories_auto_save_desc),
+                trailing = {
+                    Switch(
+                        checked = memoryAutoSaveEnabled,
+                        onCheckedChange = { onToggleMemoryAutoSave(it) },
+                        enabled = memoriesEnabled
+                    )
+                },
+                onClick = {
+                    if (memoriesEnabled) onToggleMemoryAutoSave(!memoryAutoSaveEnabled)
+                }
+            )
+
+            PillListItem(
+                headline = stringResource(R.string.settings_memories_manage),
+                supporting = stringResource(R.string.settings_memories_manage_desc),
+                onClick = { closeSettingsThen(onOpenMemoriesManager) }
+            )
+
+            HorizontalDivider()
+
+            PillListItem(
                 headline = stringResource(R.string.settings_version),
                 supporting = versionName
             )
@@ -1110,6 +1307,145 @@ private fun PillButton(
     }
 }
 
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MemoriesManagerBottomSheet(
+    memories: List<String>,
+    onAdd: (String) -> Unit,
+    onDeleteAt: (Int) -> Unit,
+    onClearAll: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    LaunchedEffect(Unit) { sheetState.show() }
+    val scope = rememberCoroutineScope()
+
+    var newMemory by rememberSaveable { mutableStateOf("") }
+
+    fun closeThen(action: () -> Unit = {}) {
+        scope.launch {
+            runCatching { sheetState.hide() }
+            onDismiss()
+            action()
+        }
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = { closeThen() },
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = stringResource(R.string.memories_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                IconButton(onClick = { closeThen() }) {
+                    Icon(imageVector = Icons.Filled.Close, contentDescription = stringResource(R.string.action_close))
+                }
+            }
+
+            Text(
+                text = stringResource(R.string.memories_desc),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            OutlinedTextField(
+                value = newMemory,
+                onValueChange = { newMemory = it },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text(stringResource(R.string.memories_add_hint)) },
+                singleLine = true
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                TextButton(
+                    onClick = {
+                        val txt = newMemory.trim()
+                        if (txt.isNotBlank()) {
+                            onAdd(txt)
+                            newMemory = ""
+                        }
+                    }
+                ) {
+                    Text(stringResource(R.string.memories_save_manual))
+                }
+
+                if (memories.isNotEmpty()) {
+                    TextButton(onClick = { onClearAll() }) {
+                        Text(stringResource(R.string.memories_clear_all))
+                    }
+                }
+            }
+
+            if (memories.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.memories_empty),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 380.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    contentPadding = PaddingValues(bottom = 12.dp)
+                ) {
+                    itemsIndexed(memories) { idx, mem ->
+                        Surface(
+                            shape = RoundedCornerShape(18.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Text(
+                                    text = mem,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.weight(1f),
+                                    maxLines = 3,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                IconButton(onClick = { onDeleteAt(idx) }) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Delete,
+                                        contentDescription = stringResource(R.string.action_delete),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LanguagePickerBottomSheet(
@@ -1120,6 +1456,7 @@ private fun LanguagePickerBottomSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     LaunchedEffect(Unit) { sheetState.show() }
     val scope = rememberCoroutineScope()
+
 
     fun closeThen(action: () -> Unit = {}) {
         scope.launch {
