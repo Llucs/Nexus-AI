@@ -89,6 +89,7 @@ class MainActivity : AppCompatActivity() {
 
             val chatStore = remember { ChatStore(context.applicationContext) }
             val prefs = remember { UserPrefs(context.applicationContext) }
+            val memoryStore = remember { MemoryStore(context.applicationContext) }
 
             var prefsLoaded by remember { mutableStateOf(false) }
             var userName by rememberSaveable { mutableStateOf("") }
