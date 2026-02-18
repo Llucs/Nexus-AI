@@ -190,10 +190,10 @@ fun ChatScreen(
     val memorySaveRules = when {
         !memoriesEnabled -> ""
         memoriesEnabled && memoryAutoSaveEnabled -> when (locale) {
-            "pt" -> "Se você aprender algo que vale guardar como memória, no FIM da mensagem (em uma linha separada), escreva: <<MEMORY_SAVE: ...>>. Seja curto. Não explique esse marcador."
-            "es" -> "Si aprendes algo que vale guardar como memoria, AL FINAL del mensaje (en una línea separada), escribe: <<MEMORY_SAVE: ...>>. Sé breve. No expliques ese marcador."
-            "ru" -> "Если узнаешь что-то, что стоит сохранить, В КОНЦЕ сообщения (отдельной строкой) напиши: <<MEMORY_SAVE: ...>>. Кратко. Не объясняй этот маркер."
-            else -> "If you learn something worth saving as a memory, at the END of your message (on its own line) write: <<MEMORY_SAVE: ...>>. Keep it short. Don't explain the marker."
+            "pt" -> "Quando o usuário disser algo pessoal e estável (ex.: nome, idade, cidade/país, preferências, hobbies, dispositivos, projetos, metas), você DEVE salvar como memória. No FIM da sua resposta, em uma linha separada e apenas com isso, escreva: <<MEMORY_SAVE: ...>>. Use uma frase curta (sem Markdown, sem #, sem listas). Se houver mais de 1 memória, use 1 linha por memória (máx. 2). Nunca escreva nada depois do(s) marcador(es)."
+            "es" -> "Cuando el usuario diga algo personal y estable (p. ej. nombre, edad, ciudad/país, preferencias, hobbies, dispositivos, proyectos, metas), DEBES guardarlo como memoria. AL FINAL de tu respuesta, en una línea separada y solo con eso, escribe: <<MEMORY_SAVE: ...>>. Usa una frase corta (sin Markdown, sin #, sin listas). Si hay más de 1 memoria, usa 1 línea por memoria (máx. 2). No escribas nada después del/los marcador(es)."
+            "ru" -> "Если пользователь говорит что-то личное и стабильное (например: имя, возраст, город/страна, предпочтения, хобби, устройства, проекты, цели), ТЫ ДОЛЖЕН сохранить это как память. В КОНЦЕ ответа, отдельной строкой и только это, напиши: <<MEMORY_SAVE: ...>>. Коротко (без Markdown, без #, без списков). Если памяти больше одной — 1 строка на память (макс. 2). После маркера(ов) ничего не добавляй."
+            else -> "When the user says stable personal info (e.g., name, age, city/country, preferences, hobbies, devices, projects, goals), you MUST save it as a memory. At the END of your reply, on its own line and with nothing else, write: <<MEMORY_SAVE: ...>>. Keep it short (no Markdown, no #, no lists). If there is more than one memory, use one line per memory (max 2). Do not write anything after the marker line(s)."
         }
         else -> when (locale) {
             "pt" -> "Não use marcadores de memória (auto-salvar está desligado)."
