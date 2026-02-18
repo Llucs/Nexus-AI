@@ -2,7 +2,11 @@ package com.llucs.nexusai.net
 
 import com.llucs.nexusai.UiMessage
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.DisposableHandle
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.job
+import okhttp3.Call
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -10,8 +14,8 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
-import java.io.InputStreamReader
 import java.io.IOException
+import java.io.InputStreamReader
 import java.util.concurrent.TimeUnit
 
 class PollinationsClient {
@@ -22,8 +26,15 @@ class PollinationsClient {
         .readTimeout(0, TimeUnit.SECONDS)
         .build()
 
-    private val url = "https://text.pollinations.ai/openai"
+    private val url = "https://text.pollinations.ai/openai/chat/completions"
     private val mediaType = "application/json".toMediaType()
+
+    @Volatile
+    private var activeCall: Call? = null
+
+    fun cancelActive() {
+        activeCall?.cancel()
+    }
 
     suspend fun complete(history: List<UiMessage>): String = withContext(Dispatchers.IO) {
         val body = buildBody(history, stream = false)
@@ -50,6 +61,8 @@ class PollinationsClient {
             .url(url)
             .post(body.toRequestBody(mediaType))
             .header("Content-Type", "application/json")
+            .header("Accept", "text/event-stream")
+            .header("Cache-Control", "no-cache")
             .build()
 
         executeStreamWithRetry(request, onChunk)
@@ -76,8 +89,10 @@ class PollinationsClient {
     private fun executeWithRetry(request: Request): String {
         var last: Exception? = null
         for (attempt in 1..3) {
+            val call = client.newCall(request)
+            activeCall = call
             try {
-                client.newCall(request).execute().use { resp ->
+                call.execute().use { resp ->
                     val txt = resp.body?.string().orEmpty()
                     if (txt.startsWith("502 Bad Gateway")) throw IOException("502 Bad Gateway")
                     if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
@@ -86,7 +101,12 @@ class PollinationsClient {
                 }
             } catch (e: Exception) {
                 last = e
-                try { Thread.sleep((attempt * 800).toLong()) } catch (_: InterruptedException) {}
+                try {
+                    Thread.sleep((attempt * 800).toLong())
+                } catch (_: InterruptedException) {
+                }
+            } finally {
+                if (activeCall === call) activeCall = null
             }
         }
         throw (last ?: IOException("Falha na requisição"))
@@ -94,22 +114,34 @@ class PollinationsClient {
 
     private suspend fun executeStreamWithRetry(request: Request, onChunk: suspend (String) -> Unit) {
         var last: Exception? = null
+        val parentJob = currentCoroutineContext().job
+
         for (attempt in 1..3) {
+            val call = client.newCall(request)
+            activeCall = call
+            var handle: DisposableHandle? = null
+
             try {
-                client.newCall(request).execute().use { resp ->
+                handle = parentJob.invokeOnCompletion { call.cancel() }
+
+                call.execute().use { resp ->
                     val body = resp.body ?: throw IOException("Sem corpo")
                     val reader = BufferedReader(InputStreamReader(body.byteStream()))
-                    var line: String?
 
                     while (true) {
-                        line = reader.readLine() ?: break
+                        val line = reader.readLine() ?: break
                         if (!line.startsWith("data:")) continue
                         val payload = line.removePrefix("data:").trim()
+                        if (payload.isEmpty()) continue
                         if (payload == "[DONE]") break
                         if (payload.startsWith("502 Bad Gateway")) throw IOException("502 Bad Gateway")
 
-                        val obj = try { JSONObject(payload) } catch (_: Exception) { null }
-                        if (obj == null) continue
+                        val obj = try {
+                            JSONObject(payload)
+                        } catch (_: Exception) {
+                            null
+                        } ?: continue
+
                         if (obj.has("error")) {
                             val msg = obj.getJSONObject("error").optString("message", "Erro da API")
                             throw IOException(msg)
@@ -130,10 +162,17 @@ class PollinationsClient {
             } catch (e: Exception) {
                 last = e
                 withContext(Dispatchers.IO) {
-                    try { Thread.sleep((attempt * 900).toLong()) } catch (_: InterruptedException) {}
+                    try {
+                        Thread.sleep((attempt * 900).toLong())
+                    } catch (_: InterruptedException) {
+                    }
                 }
+            } finally {
+                handle?.dispose()
+                if (activeCall === call) activeCall = null
             }
         }
+
         throw (last ?: IOException("Falha no streaming"))
     }
 }
