@@ -53,4 +53,19 @@
     <string name="language_en">Inglés</string>
     <string name="language_es">Español</string>
     <string name="language_ru">Ruso</string>
+    <string name="settings_memories_title">Memorias</string>
+    <string name="settings_memories_auto_save">Guardar memorias automáticamente</string>
+    <string name="settings_memories_auto_save_desc">Permite que la IA guarde memorias útiles automáticamente</string>
+    <string name="settings_memories_manage">Administrar memorias</string>
+    <string name="settings_memories_manage_desc">Ver, añadir o borrar memorias guardadas</string>
+    <string name="memories_title">Memorias</string>
+    <string name="memories_desc">Notas guardadas que la IA puede usar después (solo si Memorias está activado).</string>
+    <string name="memories_add_hint">Escribe una memoria para guardar…</string>
+    <string name="memories_save_manual">Guardar</string>
+    <string name="memories_clear_all">Borrar todo</string>
+    <string name="memories_empty">Aún no hay memorias guardadas.</string>
+    <string name="memories_empty_short">Sin memorias</string>
+    <string name="memories_count_template">%1$d guardadas</string>
+    <string name="memory_saved_template">Memoria guardada: %1$s</string>
+    <string name="action_delete">Eliminar</string>
 </resources>
