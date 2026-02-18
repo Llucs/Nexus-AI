@@ -8,6 +8,7 @@ import com.llucs.nexusai.data.MemoryStore
 import com.llucs.nexusai.data.StoredChat
 import com.llucs.nexusai.data.StoredMessage
 import com.llucs.nexusai.net.PollinationsClient
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -241,6 +242,7 @@ private fun stripMemoryCommands(text: String): Pair<String, List<String>> {
     }
 
     fun stop() {
+        client.cancelActive()
         runningJob?.cancel()
         runningJob = null
         if (_state.value.sending) {
@@ -342,6 +344,8 @@ replaceAssistantAt(chatId, assistantIndex, cleaned, memorySaved = combinedNote)
 
                 _state.value = _state.value.copy(sending = false)
                 persist()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 val msg = e.message ?: strings.genericError
                 replaceAssistantAt(chatId, assistantIndex, String.format(Locale.getDefault(), strings.assistantErrorTemplate, msg))
