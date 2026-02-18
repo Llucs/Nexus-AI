@@ -28,30 +28,55 @@ class ChatViewModel(
 
     private var memoriesEnabled: Boolean = true
     private var memoryAutoSaveEnabled: Boolean = true
-
     // Marker that the assistant can output to save a memory (kept hidden from chat UI).
-    private val memorySaveRegex = Regex("""<<\s*MEMORY_SAVE\s*:\s*(.+?)\s*>>""")
+    // IMPORTANT: this must be on its OWN line, and ideally at the very end of the message.
+    private val memorySaveRegex = Regex("""(?m)^[\t ]*<<\s*MEMORY_SAVE\s*:\s*(.+?)\s*>>\s*$""")
 
     fun updateMemorySettings(memoriesEnabled: Boolean, autoSaveEnabled: Boolean) {
         this.memoriesEnabled = memoriesEnabled
         this.memoryAutoSaveEnabled = autoSaveEnabled
     }
 
+    
+    private fun cleanMemoryText(raw: String): String {
+        var t = raw.trim()
+
+        // Remove common markdown prefixes that can leak into memories.
+        t = t.replace(Regex("""^\s*#+\s*"""), "")
+        t = t.replace(Regex("""^\s*[-*•]+\s*"""), "")
+
+        // Prevent control / marker characters from leaking into stored memories.
+        t = t.replace("`", "")
+            .replace("<", "")
+            .replace(">", "")
+
+        // Normalize whitespace.
+        t = t.replace(Regex("""\s+"""), " ").trim()
+        return t
+    }
+
     private fun stripMemoryCommands(text: String): Pair<String, List<String>> {
         if (!text.contains("MEMORY_SAVE")) return text to emptyList()
+
         val mems = mutableListOf<String>()
         val cleanedLines = mutableListOf<String>()
+
         for (line in text.lines()) {
-            val m = memorySaveRegex.find(line)
+            val m = memorySaveRegex.matchEntire(line)
             if (m != null) {
-                val mem = m.groupValues.getOrNull(1)?.trim().orEmpty()
+                val mem = cleanMemoryText(m.groupValues.getOrNull(1).orEmpty())
                 if (mem.isNotBlank()) mems.add(mem)
             } else {
                 cleanedLines.add(line)
             }
         }
-        return cleanedLines.joinToString("\n").trimEnd() to mems
+
+        // NOTE: We only remove lines that are EXACTLY the marker line.
+        // This prevents nuking real content if the model formats the line wrong.
+        val cleaned = cleanedLines.joinToString("\n").trimEnd()
+        return cleaned to mems.distinct()
     }
+
 
     private fun greetingMessage(): UiMessage = UiMessage("assistant", strings.greeting)
 
@@ -189,6 +214,10 @@ class ChatViewModel(
             sending = true
         )
 
+        // Capture where the placeholder assistant message lives (so we update the right bubble, even if chats change).
+        val chatId = _state.value.currentChatId
+        val assistantIndex = _state.value.messages.lastIndex
+
         runningJob = viewModelScope.launch {
             try {
                 var acc = ""
@@ -198,7 +227,7 @@ class ChatViewModel(
                     acc += chunk
                     // Hide any full memory markers while streaming.
                     val display = stripMemoryCommands(acc).first
-                    replaceLastAssistant(display)
+                    replaceAssistantAt(chatId, assistantIndex, display)
                 }
 
                 // Final pass: remove memory marker(s) and (optionally) save them.
@@ -211,13 +240,13 @@ class ChatViewModel(
                     savedNote = extracted.joinToString(" • ")
                 }
                 // Update last assistant with cleaned content and a note (so UI can show “Memory saved”).
-                replaceLastAssistant(cleaned, memorySaved = savedNote)
+                replaceAssistantAt(chatId, assistantIndex, cleaned, memorySaved = savedNote)
 
                 _state.value = _state.value.copy(sending = false)
                 persist()
             } catch (e: Exception) {
                 val msg = e.message ?: strings.genericError
-                replaceLastAssistant(String.format(Locale.getDefault(), strings.assistantErrorTemplate, msg))
+                replaceAssistantAt(chatId, assistantIndex, String.format(Locale.getDefault(), strings.assistantErrorTemplate, msg))
                 _state.value = _state.value.copy(
                     sending = false,
                     snackbar = SnackbarEvent(
@@ -255,14 +284,30 @@ class ChatViewModel(
         send()
     }
 
-    private fun replaceLastAssistant(content: String, memorySaved: String? = null) {
+    
+    private fun replaceAssistantAt(
+        chatId: String,
+        index: Int,
+        content: String,
+        memorySaved: String? = null,
+        isThinking: Boolean = false
+    ) {
+        // Guard against race conditions when the user switches chats mid-stream.
+        if (_state.value.currentChatId != chatId) return
+
         val updated = _state.value.messages.toMutableList()
-        if (updated.isEmpty()) return
-        val lastIdx = updated.lastIndex
-        if (updated[lastIdx].role != "assistant") return
-        updated[lastIdx] = UiMessage("assistant", content, isThinking = false, memorySaved = memorySaved)
+        if (index < 0 || index >= updated.size) return
+        if (updated[index].role != "assistant") return
+
+        updated[index] = UiMessage(
+            role = "assistant",
+            content = content,
+            isThinking = isThinking,
+            memorySaved = memorySaved
+        )
         _state.value = _state.value.copy(messages = updated)
     }
+
 
     private suspend fun persist() {
         store.upsertChat(toStoredChat(_state.value))
