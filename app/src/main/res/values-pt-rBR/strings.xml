@@ -53,4 +53,19 @@
     <string name="language_en">English</string>
     <string name="language_es">Espanhol</string>
     <string name="language_ru">Russo</string>
+    <string name="settings_memories_title">Memórias</string>
+    <string name="settings_memories_auto_save">Salvar memórias automaticamente</string>
+    <string name="settings_memories_auto_save_desc">Deixe a IA salvar memórias úteis automaticamente</string>
+    <string name="settings_memories_manage">Gerenciar memórias</string>
+    <string name="settings_memories_manage_desc">Ver, adicionar ou apagar memórias salvas</string>
+    <string name="memories_title">Memórias</string>
+    <string name="memories_desc">Anotações salvas que a IA pode usar depois (somente se Memórias estiver ativado).</string>
+    <string name="memories_add_hint">Digite uma memória para salvar…</string>
+    <string name="memories_save_manual">Salvar</string>
+    <string name="memories_clear_all">Apagar tudo</string>
+    <string name="memories_empty">Nenhuma memória salva ainda.</string>
+    <string name="memories_empty_short">Sem memórias</string>
+    <string name="memories_count_template">%1$d salvas</string>
+    <string name="memory_saved_template">Memória salva: %1$s</string>
+    <string name="action_delete">Excluir</string>
 </resources>
