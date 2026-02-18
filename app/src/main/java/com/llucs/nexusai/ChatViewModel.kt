@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.llucs.nexusai.data.ChatStore
+import com.llucs.nexusai.data.MemoryStore
 import com.llucs.nexusai.data.StoredChat
 import com.llucs.nexusai.data.StoredMessage
 import com.llucs.nexusai.net.PollinationsClient
@@ -17,12 +18,40 @@ import java.util.UUID
 
 class ChatViewModel(
     private val store: ChatStore,
+    private val memoryStore: MemoryStore?,
     strings: ChatStrings
 ) : ViewModel() {
 
     private val client = PollinationsClient()
 
     private var strings: ChatStrings = strings
+
+    private var memoriesEnabled: Boolean = true
+    private var memoryAutoSaveEnabled: Boolean = true
+
+    // Marker that the assistant can output to save a memory (kept hidden from chat UI).
+    private val memorySaveRegex = Regex("""<<\s*MEMORY_SAVE\s*:\s*(.+?)\s*>>""")
+
+    fun updateMemorySettings(memoriesEnabled: Boolean, autoSaveEnabled: Boolean) {
+        this.memoriesEnabled = memoriesEnabled
+        this.memoryAutoSaveEnabled = autoSaveEnabled
+    }
+
+    private fun stripMemoryCommands(text: String): Pair<String, List<String>> {
+        if (!text.contains("MEMORY_SAVE")) return text to emptyList()
+        val mems = mutableListOf<String>()
+        val cleanedLines = mutableListOf<String>()
+        for (line in text.lines()) {
+            val m = memorySaveRegex.find(line)
+            if (m != null) {
+                val mem = m.groupValues.getOrNull(1)?.trim().orEmpty()
+                if (mem.isNotBlank()) mems.add(mem)
+            } else {
+                cleanedLines.add(line)
+            }
+        }
+        return cleanedLines.joinToString("\n").trimEnd() to mems
+    }
 
     private fun greetingMessage(): UiMessage = UiMessage("assistant", strings.greeting)
 
@@ -167,8 +196,22 @@ class ChatViewModel(
                     if (!isActive) return@stream
                     if (chunk.isBlank()) return@stream
                     acc += chunk
-                    replaceLastAssistant(acc)
+                    // Hide any full memory markers while streaming.
+                    val display = stripMemoryCommands(acc).first
+                    replaceLastAssistant(display)
                 }
+
+                // Final pass: remove memory marker(s) and (optionally) save them.
+                val (cleaned, extracted) = stripMemoryCommands(acc)
+                var savedNote: String? = null
+                if (extracted.isNotEmpty() && memoriesEnabled && memoryAutoSaveEnabled && memoryStore != null) {
+                    extracted.forEach { mem ->
+                        runCatching { memoryStore.addMemory(mem) }
+                    }
+                    savedNote = extracted.joinToString(" • ")
+                }
+                // Update last assistant with cleaned content and a note (so UI can show “Memory saved”).
+                replaceLastAssistant(cleaned, memorySaved = savedNote)
 
                 _state.value = _state.value.copy(sending = false)
                 persist()
@@ -212,12 +255,12 @@ class ChatViewModel(
         send()
     }
 
-    private fun replaceLastAssistant(content: String) {
+    private fun replaceLastAssistant(content: String, memorySaved: String? = null) {
         val updated = _state.value.messages.toMutableList()
         if (updated.isEmpty()) return
         val lastIdx = updated.lastIndex
         if (updated[lastIdx].role != "assistant") return
-        updated[lastIdx] = UiMessage("assistant", content, isThinking = false)
+        updated[lastIdx] = UiMessage("assistant", content, isThinking = false, memorySaved = memorySaved)
         _state.value = _state.value.copy(messages = updated)
     }
 
@@ -245,11 +288,11 @@ class ChatViewModel(
     }
 
     companion object {
-        fun factory(store: ChatStore, strings: ChatStrings): ViewModelProvider.Factory =
+        fun factory(store: ChatStore, memoryStore: MemoryStore?, strings: ChatStrings): ViewModelProvider.Factory =
             object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    return ChatViewModel(store, strings) as T
+                    return ChatViewModel(store, memoryStore, strings) as T
                 }
             }
     }
