@@ -23,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.os.LocaleListCompat
 import com.llucs.nexusai.data.ChatStore
+import com.llucs.nexusai.data.MemoryStore
 import com.llucs.nexusai.data.UserPrefs
 import com.llucs.nexusai.ui.NexusTheme
 import com.llucs.nexusai.ui.chat.ChatScreen
@@ -112,6 +113,8 @@ class MainActivity : AppCompatActivity() {
                 Surface(color = MaterialTheme.colorScheme.background) {
                     ChatScreen(
                         store = chatStore,
+                        prefs = prefs,
+                        memoryStore = memoryStore,
                         userName = userName,
                         languageCode = lang,
                         onEditName = {
