@@ -53,4 +53,19 @@
     <string name="language_en">English</string>
     <string name="language_es">Español</string>
     <string name="language_ru">Русский</string>
+    <string name="settings_memories_title">Memories</string>
+    <string name="settings_memories_auto_save">Auto-save memories</string>
+    <string name="settings_memories_auto_save_desc">Let the AI save useful memories automatically</string>
+    <string name="settings_memories_manage">Manage memories</string>
+    <string name="settings_memories_manage_desc">View, add, or delete saved memories</string>
+    <string name="memories_title">Memories</string>
+    <string name="memories_desc">Saved notes the AI can use later (only if Memories is enabled).</string>
+    <string name="memories_add_hint">Type a memory to save…</string>
+    <string name="memories_save_manual">Save</string>
+    <string name="memories_clear_all">Clear all</string>
+    <string name="memories_empty">No memories saved yet.</string>
+    <string name="memories_empty_short">No memories yet</string>
+    <string name="memories_count_template">%1$d saved</string>
+    <string name="memory_saved_template">Memory saved: %1$s</string>
+    <string name="action_delete">Delete</string>
 </resources>
