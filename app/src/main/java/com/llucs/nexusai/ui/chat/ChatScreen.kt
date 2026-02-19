@@ -81,6 +81,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.onDispose
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -418,7 +420,7 @@ val greeting = when (locale) {
     val clipboard = LocalClipboardManager.current
     val snackbarHostState = remember { SnackbarHostState() }
     val listState = rememberLazyListState()
-    val scope = rememberCoroutineScope()
+    val uiScope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
         runCatching { memoriesEnabled = prefs.getMemoriesEnabled(true) }
@@ -568,7 +570,7 @@ val greeting = when (locale) {
             ) {
                 FloatingActionButton(
                     onClick = {
-                        scope.launch { listState.animateScrollToItem(uiState.messages.lastIndex) }
+                        uiScope.launch { listState.animateScrollToItem(uiState.messages.lastIndex) }
                     },
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     contentColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -598,11 +600,11 @@ if (showSettings) {
         memoriesCount = memories.size,
         onToggleMemoriesEnabled = { enabled ->
             memoriesEnabled = enabled
-            scope.launch { prefs.setMemoriesEnabled(enabled) }
+            uiScope.launch { prefs.setMemoriesEnabled(enabled) }
         },
         onToggleMemoryAutoSave = { enabled ->
             memoryAutoSaveEnabled = enabled
-            scope.launch { prefs.setMemoryAutoSaveEnabled(enabled) }
+            uiScope.launch { prefs.setMemoryAutoSaveEnabled(enabled) }
         },
         onOpenMemoriesManager = {
             showMemoriesManager = true
@@ -624,19 +626,19 @@ if (showSettings) {
         MemoriesManagerBottomSheet(
             memories = memories,
             onAdd = { mem ->
-                scope.launch {
+                uiScope.launch {
                     memoryStore.addMemory(mem)
                     memories = memoryStore.loadMemories()
                 }
             },
             onDeleteAt = { idx ->
-                scope.launch {
+                uiScope.launch {
                     memoryStore.removeAt(idx)
                     memories = memoryStore.loadMemories()
                 }
             },
             onClearAll = {
-                scope.launch {
+                uiScope.launch {
                     memoryStore.clearAll()
                     memories = emptyList()
                 }
@@ -1053,6 +1055,11 @@ private fun NexusInputBar(
 private fun EmptySuggestions(
     onPick: (String) -> Unit
 ) {
+    val promptCreateImage = stringResource(R.string.prompt_create_image)
+    val promptSummarize = stringResource(R.string.prompt_summarize)
+    val promptSurprise = stringResource(R.string.prompt_surprise)
+    val promptHelpWrite = stringResource(R.string.prompt_help_write)
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -1079,22 +1086,22 @@ private fun EmptySuggestions(
                 QuickActionCard(
                     icon = Icons.Filled.Image,
                     text = stringResource(R.string.suggestions_create_image),
-                    onClick = { onPick(stringResource(R.string.prompt_create_image)) }
+                    onClick = { onPick(promptCreateImage) }
                 )
                 QuickActionCard(
                     icon = Icons.Filled.Summarize,
                     text = stringResource(R.string.suggestions_summarize),
-                    onClick = { onPick(stringResource(R.string.prompt_summarize)) }
+                    onClick = { onPick(promptSummarize) }
                 )
                 QuickActionCard(
                     icon = Icons.Filled.AutoAwesome,
                     text = stringResource(R.string.suggestions_surprise),
-                    onClick = { onPick(stringResource(R.string.prompt_surprise)) }
+                    onClick = { onPick(promptSurprise) }
                 )
                 QuickActionCard(
                     icon = Icons.Filled.Edit,
                     text = stringResource(R.string.suggestions_help_write),
-                    onClick = { onPick(stringResource(R.string.prompt_help_write)) }
+                    onClick = { onPick(promptHelpWrite) }
                 )
             }
         }
