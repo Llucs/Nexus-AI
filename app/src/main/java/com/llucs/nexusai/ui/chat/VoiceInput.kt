@@ -2,23 +2,11 @@ package com.llucs.nexusai.ui.chat
 
 import android.content.Context
 import android.content.Intent
-import android.media.AudioFormat
-import android.media.AudioRecord
-import android.media.MediaRecorder
 import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
-import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
-import kotlin.math.abs
-import kotlin.math.max
-import kotlin.math.min
 
 data class VoiceCaptureState(
     val listening: Boolean = false,
@@ -35,8 +23,6 @@ class VoiceInputController(
 ) {
 
     private var recognizer: SpeechRecognizer? = null
-    private var audioRecord: AudioRecord? = null
-    private var audioJob: Job? = null
 
     private var state = VoiceCaptureState()
 
@@ -52,13 +38,31 @@ class VoiceInputController(
     fun start() {
         if (state.listening) return
 
+        // Some devices/ROMs don't ship a Speech Recognition service.
+        // In that case, starting the recognizer will just error instantly.
+        if (!SpeechRecognizer.isRecognitionAvailable(context)) {
+            push { it.copy(listening = false, finalText = "", partialText = "", levels = List(24) { 0f }) }
+            return
+        }
+
         val sr = SpeechRecognizer.createSpeechRecognizer(context)
         recognizer = sr
 
         sr.setRecognitionListener(object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) {}
             override fun onBeginningOfSpeech() {}
-            override fun onRmsChanged(rmsdB: Float) {}
+            override fun onRmsChanged(rmsdB: Float) {
+                // Use the recognizer's RMS callback as the visual mic meter.
+                // This avoids starting a second AudioRecord capture, which can
+                // conflict with SpeechRecognizer on many devices.
+                val norm = ((rmsdB + 2f) / 12f).coerceIn(0f, 1f)
+                push { s ->
+                    var levels = s.levels.toMutableList()
+                    levels.add(0, norm)
+                    if (levels.size > 24) levels = levels.subList(0, 24)
+                    s.copy(levels = levels.toList())
+                }
+            }
             override fun onBufferReceived(buffer: ByteArray?) {}
             override fun onEndOfSpeech() {}
 
@@ -97,22 +101,10 @@ class VoiceInputController(
         push { it.copy(listening = true, finalText = "", partialText = "", levels = List(24) { 0f }) }
 
         sr.startListening(intent)
-        startAudioMeter()
     }
 
     fun stop() {
         if (!state.listening) return
-
-        audioJob?.cancel()
-        audioJob = null
-
-        try {
-            audioRecord?.stop()
-        } catch (_: Throwable) {}
-        try {
-            audioRecord?.release()
-        } catch (_: Throwable) {}
-        audioRecord = null
 
         try {
             recognizer?.stopListening()
@@ -132,53 +124,6 @@ class VoiceInputController(
         push { it.copy(finalText = "", partialText = "") }
     }
 
-    private fun startAudioMeter() {
-        val sampleRate = 16000
-        val channel = AudioFormat.CHANNEL_IN_MONO
-        val encoding = AudioFormat.ENCODING_PCM_16BIT
-
-        val minBuf = AudioRecord.getMinBufferSize(sampleRate, channel, encoding).let { if (it > 0) it else sampleRate }
-        val bufSize = max(minBuf, sampleRate)
-
-        val rec = AudioRecord(
-            MediaRecorder.AudioSource.MIC,
-            sampleRate,
-            channel,
-            encoding,
-            bufSize
-        )
-
-        audioRecord = rec
-
-        try {
-            rec.startRecording()
-        } catch (_: Throwable) {
-            return
-        }
-
-        val chunk = ShortArray(512)
-
-        audioJob = scope.launch(Dispatchers.Default) {
-            var levels = state.levels.toMutableList()
-            while (isActive && state.listening) {
-                val read = try { rec.read(chunk, 0, chunk.size) } catch (_: Throwable) { 0 }
-                var sum = 0.0
-                for (i in 0 until max(0, read)) {
-                    val v = chunk[i].toInt()
-                    sum += (v * v).toDouble()
-                }
-                val rms = if (read > 0) kotlin.math.sqrt(sum / read) else 0.0
-                val norm = min(1.0, rms / 9000.0).toFloat()
-
-                val eased = min(1f, max(0f, norm))
-                levels.add(0, eased)
-                if (levels.size > 24) levels = levels.subList(0, 24)
-
-                push { it.copy(levels = levels.toList()) }
-                delay(50)
-            }
-        }
-    }
 }
 
 fun normalizePtDictation(raw: String): String {
