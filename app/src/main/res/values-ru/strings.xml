@@ -1,4 +1,5 @@
 <resources>
+    
     <string name="app_name">Nexus</string>
     <string name="developer_name">Llucs</string>
 
@@ -68,4 +69,18 @@
     <string name="memories_count_template">Сохранено: %1$d</string>
     <string name="memory_saved_template">Память сохранена: %1$s</string>
     <string name="action_delete">Удалить</string>
+<string name="voice_start">Микрофон</string>
+    <string name="voice_cancel">Отмена</string>
+    <string name="voice_show_text">Показать текст</string>
+    <string name="voice_listening_hint">Слушаю…</string>
+    <string name="suggestions_title">Чем помочь?</string>
+    <string name="suggestions_create_image">Создать изображение</string>
+    <string name="suggestions_summarize">Сжать текст</string>
+    <string name="suggestions_surprise">Удиви меня</string>
+    <string name="suggestions_help_write">Помочь написать</string>
+    <string name="prompt_create_image">Придумай идею изображения.</string>
+    <string name="prompt_summarize">Сократи этот текст:</string>
+    <string name="prompt_surprise">Удиви меня чем-нибудь.</string>
+    <string name="prompt_help_write">Помоги написать:</string>
+    
 </resources>
