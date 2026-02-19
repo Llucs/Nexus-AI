@@ -111,6 +111,22 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Language
+import android.Manifest
+import android.app.Activity
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Keyboard
+import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Summarize
+import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.ButtonDefaults
+import androidx.core.content.ContextCompat
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -125,6 +141,47 @@ fun ChatScreen(
     sourceUrl: String = "https://github.com/Llucs/Nexus-AI"
 ) {
     val context = LocalContext.current
+
+    val scope = rememberCoroutineScope()
+    var voiceMode by rememberSaveable { mutableStateOf(false) }
+    var voiceState by remember { mutableStateOf(VoiceCaptureState()) }
+
+    val voiceController = remember(context, scope) {
+        VoiceInputController(context, scope) { voiceState = it }
+    }
+
+    val requestMic = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            voiceMode = true
+            voiceController.resetText()
+            voiceController.start()
+        }
+    }
+
+    fun startVoice() {
+        val granted = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (granted) {
+            voiceMode = true
+            voiceController.resetText()
+            voiceController.start()
+        } else {
+            requestMic.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    LaunchedEffect(voiceMode) {
+        if (!voiceMode) voiceController.stop()
+    }
+
+    DisposableEffect(Unit) {
+        onDispose { voiceController.stop() }
+    }
 
     val locale = languageCode.lowercase()
 
@@ -425,12 +482,31 @@ val greeting = when (locale) {
         },
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
-            NexusInputBar(
-                input = uiState.input,
-                enabled = !uiState.sending,
-                onInputChange = vm::setInput,
-                onSend = vm::send
-            )
+            if (voiceMode) {
+                VoiceInputBar(
+                    state = voiceState,
+                    onToggleShowText = voiceController::toggleShowText,
+                    onCancel = { voiceMode = false },
+                    onSendText = { t ->
+                        val normalized = normalizePtDictation(t)
+                        if (normalized.isNotBlank()) {
+                            vm.setInput(normalized)
+                            voiceMode = false
+                            vm.send()
+                        } else {
+                            voiceMode = false
+                        }
+                    }
+                )
+            } else {
+                NexusInputBar(
+                    input = uiState.input,
+                    enabled = !uiState.sending,
+                    onInputChange = vm::setInput,
+                    onSend = vm::send,
+                    onMic = { startVoice() }
+                )
+            }
         }
     ) { padding ->
         val bg = Brush.verticalGradient(
@@ -446,6 +522,13 @@ val greeting = when (locale) {
                 .background(bg)
                 .padding(padding)
         ) {
+            AnimatedVisibility(visible = uiState.messages.isEmpty()) {
+                EmptySuggestions(
+                    onPick = { suggestion ->
+                        vm.setInput(suggestion)
+                    }
+                )
+            }
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
@@ -865,7 +948,8 @@ private fun NexusInputBar(
     input: String,
     enabled: Boolean,
     onInputChange: (String) -> Unit,
-    onSend: () -> Unit
+    onSend: () -> Unit,
+    onMic: () -> Unit
 ) {
     val canSend = enabled && input.trim().isNotEmpty()
 
@@ -906,10 +990,32 @@ private fun NexusInputBar(
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                     keyboardActions = KeyboardActions(onSend = { if (canSend) onSend() }),
                     maxLines = 6,
+                    leadingIcon = {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
+                            modifier = Modifier
+                                .padding(start = 6.dp)
+                                .size(40.dp)
+                        ) {
+                            IconButton(
+                                onClick = { if (enabled) onMic() },
+                                enabled = enabled,
+                                modifier = Modifier.size(40.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Mic,
+                                    contentDescription = stringResource(R.string.voice_start),
+                                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = if (enabled) 0.9f else 0.45f),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    },
                     trailingIcon = {
                         Surface(
                             shape = CircleShape,
-                            color = if (canSend) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                            color = if (canSend) Color.White else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
                         ) {
                             IconButton(
                                 onClick = { if (canSend) onSend() },
@@ -919,7 +1025,7 @@ private fun NexusInputBar(
                                 Icon(
                                     imageVector = Icons.Filled.Send,
                                     contentDescription = stringResource(R.string.input_send),
-                                    tint = if (canSend) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
+                                    tint = if (canSend) Color.Black else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -937,6 +1043,256 @@ private fun NexusInputBar(
                 )
             }
     
+        }
+    }
+}
+
+
+
+@Composable
+private fun EmptySuggestions(
+    onPick: (String) -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(top = 42.dp),
+        contentAlignment = Alignment.TopCenter
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = stringResource(R.string.suggestions_title),
+                style = MaterialTheme.typography.headlineSmall
+            )
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                QuickActionCard(
+                    icon = Icons.Filled.Image,
+                    text = stringResource(R.string.suggestions_create_image),
+                    onClick = { onPick(stringResource(R.string.prompt_create_image)) }
+                )
+                QuickActionCard(
+                    icon = Icons.Filled.Summarize,
+                    text = stringResource(R.string.suggestions_summarize),
+                    onClick = { onPick(stringResource(R.string.prompt_summarize)) }
+                )
+                QuickActionCard(
+                    icon = Icons.Filled.AutoAwesome,
+                    text = stringResource(R.string.suggestions_surprise),
+                    onClick = { onPick(stringResource(R.string.prompt_surprise)) }
+                )
+                QuickActionCard(
+                    icon = Icons.Filled.Edit,
+                    text = stringResource(R.string.suggestions_help_write),
+                    onClick = { onPick(stringResource(R.string.prompt_help_write)) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuickActionCard(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    text: String,
+    onClick: () -> Unit
+) {
+    Surface(
+        tonalElevation = 0.dp,
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f),
+        shape = RoundedCornerShape(18.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f),
+                shape = RoundedCornerShape(18.dp)
+            )
+            .clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.18f),
+                modifier = Modifier.size(42.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f),
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyLarge
+            )
+        }
+    }
+}
+
+@Composable
+private fun VoiceInputBar(
+    state: VoiceCaptureState,
+    onToggleShowText: () -> Unit,
+    onCancel: () -> Unit,
+    onSendText: (String) -> Unit
+) {
+    val text = (state.partialText.ifBlank { state.finalText }).trim()
+
+    val top = Color.Transparent
+    val mid = MaterialTheme.colorScheme.surface.copy(alpha = 0.55f)
+    val bottom = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f)
+
+    Surface(
+        tonalElevation = 2.dp,
+        color = Color.Transparent
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Brush.verticalGradient(colors = listOf(top, mid, bottom)))
+                .navigationBarsPadding()
+                .imePadding()
+                .padding(horizontal = 16.dp, vertical = 10.dp)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(22.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(
+                        1.dp,
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f),
+                        RoundedCornerShape(22.dp)
+                    )
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    if (state.showText) {
+                        Text(
+                            text = if (text.isBlank()) stringResource(R.string.voice_listening_hint) else text,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 4.dp)
+                        )
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
+                            modifier = Modifier.size(42.dp)
+                        ) {
+                            IconButton(
+                                onClick = onCancel,
+                                modifier = Modifier.size(42.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Close,
+                                    contentDescription = stringResource(R.string.voice_cancel),
+                                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(10.dp))
+
+                        AudioWaveform(
+                            levels = state.levels,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(26.dp)
+                        )
+
+                        Spacer(modifier = Modifier.width(10.dp))
+
+                        OutlinedButton(
+                            onClick = onToggleShowText,
+                            shape = RoundedCornerShape(999.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.10f),
+                                contentColor = MaterialTheme.colorScheme.onSurface
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+                            ),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
+                        ) {
+                            Text(text = stringResource(R.string.voice_show_text))
+                        }
+
+                        Spacer(modifier = Modifier.width(10.dp))
+
+                        Surface(
+                            shape = CircleShape,
+                            color = Color.White,
+                            modifier = Modifier.size(46.dp)
+                        ) {
+                            IconButton(
+                                onClick = { onSendText(text) },
+                                enabled = text.isNotBlank(),
+                                modifier = Modifier.size(46.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Send,
+                                    contentDescription = stringResource(R.string.input_send),
+                                    tint = Color.Black,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AudioWaveform(
+    levels: List<Float>,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(3.dp)
+    ) {
+        val bars = if (levels.isEmpty()) List(24) { 0f } else levels
+        for (v in bars) {
+            val h = (6f + 20f * v).dp
+            Box(
+                modifier = Modifier
+                    .width(3.dp)
+                    .height(h)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f))
+            )
         }
     }
 }
