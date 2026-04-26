@@ -32,9 +32,9 @@ class ChatViewModel(
     private var pendingMemorySavedNote: String? = null
     // Marker that the assistant can output to save a memory (kept hidden from chat UI).
     // IMPORTANT: this must be on its OWN line, and ideally at the very end of the message.
-    private val memorySaveRegex = Regex('''(?m)^[\t ]*<<\s*MEMORY_SAVE\s*:\s*(.+?)\s*>>\s*$''')
+    private val memorySaveRegex = Regex("(?m)^[\t ]*<<\s*MEMORY_SAVE\s*:\s*(.+?)\s*>>\s*$")
 
-    private val memoryInlineRegex = Regex('''<<\s*MEMORY_SAVE\s*:\s*(.+?)\s*>>''')
+    private val memoryInlineRegex = Regex("<<\s*MEMORY_SAVE\s*:\s*(.+?)\s*>>")
 
     // Removed stripMemoryCommandsStreaming as streaming is no longer used.
 
@@ -48,8 +48,8 @@ class ChatViewModel(
         var t = raw.trim()
 
         // Remove common markdown prefixes that can leak into memories.
-        t = t.replace(Regex('''^\s*#+\s*'''), "")
-        t = t.replace(Regex('''^\s*[-*•]+\s*'''), "")
+        t = t.replace(Regex("^\\s*#+\\s*"), "")
+        t = t.replace(Regex("^\\s*[-*•]+\\s*"), "")
 
         // Prevent control / marker characters from leaking into stored memories.
         t = t.replace("`", "")
@@ -57,7 +57,7 @@ class ChatViewModel(
             .replace(">", "")
 
         // Normalize whitespace.
-        t = t.replace(Regex('''\s+'''), " ").trim()
+        t = t.replace(Regex("\\s+"), " ").trim()
         return t
     }
 
@@ -69,7 +69,7 @@ class ChatViewModel(
         val out = mutableListOf<String>()
 
         // Age: "eu tenho 13 anos"
-        Regex('''\b(eu\s+tenho|tenho)\s+(\d{1,3})\s+anos\b''', RegexOption.IGNORE_CASE)
+        Regex("\\b(eu\\s+tenho|tenho)\\s+(\\d{1,3})\\s+anos\\b", RegexOption.IGNORE_CASE)
             .find(t)?.let { m ->
                 val age = m.groupValues.getOrNull(2).orEmpty()
                 age.toIntOrNull()?.let { a ->
@@ -78,14 +78,14 @@ class ChatViewModel(
             }
 
         // Name: "meu nome é Lucas"
-        Regex('''\bmeu\s+nome\s+(é|eh)\s+([\p{L}][\p{L}\s.'-]{1,40})''', RegexOption.IGNORE_CASE)
+        Regex("\\bmeu\\s+nome\\s+(é|eh)\\s+([\\p{L}][\\p{L}\\s.\\'-]{1,40})", RegexOption.IGNORE_CASE)
             .find(t)?.let { m ->
                 val name = m.groupValues.getOrNull(2).orEmpty().trim()
                 if (name.isNotBlank()) out.add("O usuário se chama $name.")
             }
 
         // Location: "eu moro em Natal" / "moro em ..."
-        Regex('''\b(eu\s+)?moro\s+em\s+([^\n,.]{2,60})''', RegexOption.IGNORE_CASE)
+        Regex("\\b(eu\\s+)?moro\\s+em\\s+([^\\n,.]{2,60})", RegexOption.IGNORE_CASE)
             .find(t)?.let { m ->
                 val loc = m.groupValues.getOrNull(2).orEmpty().trim()
                 if (loc.isNotBlank()) out.add("O usuário mora em $loc.")
@@ -120,13 +120,13 @@ private fun stripMemoryCommands(text: String): Pair<String, List<String>> {
 
         // 3) Remove markers from visible text.
         var cleaned = text.replace(memoryInlineRegex, "")
-        // If there's a raw line marker, remove it too.
+        // If there\'s a raw line marker, remove it too.
         cleaned = cleaned.lines().filter { memorySaveRegex.matchEntire(it) == null }.joinToString("\n")
 
         // Cleanup leftover whitespace / blank lines.
         cleaned = cleaned
-            .replace(Regex('''[ \t]+\n'''), "\n")
-            .replace(Regex('''\n{3,}'''), "\n\n")
+            .replace(Regex("[ \t]+\n"), "\n")
+            .replace(Regex("\n{3,}"), "\n\n")
             .trimEnd()
 
         return cleaned to mems.distinctBy { it.lowercase() }
@@ -273,14 +273,14 @@ private fun stripMemoryCommands(text: String): Pair<String, List<String>> {
         )
 
         
-        // Auto-extract personal memories from the USER message (so user doesn't need to ask).
+        // Auto-extract personal memories from the USER message (so user doesn\'t need to ask).
         if (memoriesEnabled && memoryAutoSaveEnabled && memoryStore != null) {
             val extractedFromUser = extractPersonalMemoriesFromUser(text)
             if (extractedFromUser.isNotEmpty()) {
                 viewModelScope.launch {
                     extractedFromUser.forEach { mem -> runCatching { memoryStore.addMemory(mem) } }
                 }
-                pendingMemorySavedNote = extractedFromUser.joinToString(" • ")
+                pendingMemorySavedNote = extractedFromFromUser.joinToString(" • ")
             }
         }
 
@@ -349,7 +349,7 @@ private fun stripMemoryCommands(text: String): Pair<String, List<String>> {
     fun updateStrings(newStrings: ChatStrings) {
         strings = newStrings
 
-        // If the chat only has the initial greeting, update it (so it can include the user's name).
+        // If the chat only has the initial greeting, update it (so it can include the user\'s name).
         val msgs = _state.value.messages
         if (msgs.size == 1 && msgs.firstOrNull()?.role == "assistant") {
             _state.value = _state.value.copy(messages = listOf(greetingMessage()))
@@ -369,7 +369,7 @@ private fun stripMemoryCommands(text: String): Pair<String, List<String>> {
     private fun scheduleClearMemorySaved(chatId: String, index: Int, note: String) {
         viewModelScope.launch {
             delay(2500)
-            // Only clear if we're still on the same chat and the same message still has the same note.
+            // Only clear if we\'re still on the same chat and the same message still has the same note.
             if (_state.value.currentChatId != chatId) return@launch
             val msgs = _state.value.messages.toMutableList()
             if (index < 0 || index >= msgs.size) return@launch
