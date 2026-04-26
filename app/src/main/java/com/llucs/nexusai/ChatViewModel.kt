@@ -32,9 +32,9 @@ class ChatViewModel(
     private var pendingMemorySavedNote: String? = null
     // Marker that the assistant can output to save a memory (kept hidden from chat UI).
     // IMPORTANT: this must be on its OWN line, and ideally at the very end of the message.
-    private val memorySaveRegex = Regex("""(?m)^[\t ]*<<\s*MEMORY_SAVE\s*:\s*(.+?)\s*>>\s*$""")
+    private val memorySaveRegex = Regex('''(?m)^[\t ]*<<\s*MEMORY_SAVE\s*:\s*(.+?)\s*>>\s*$''')
 
-    private val memoryInlineRegex = Regex("""<<\s*MEMORY_SAVE\s*:\s*(.+?)\s*>>""")
+    private val memoryInlineRegex = Regex('''<<\s*MEMORY_SAVE\s*:\s*(.+?)\s*>>''')
 
     // Removed stripMemoryCommandsStreaming as streaming is no longer used.
 
@@ -48,8 +48,8 @@ class ChatViewModel(
         var t = raw.trim()
 
         // Remove common markdown prefixes that can leak into memories.
-        t = t.replace(Regex("""^\s*#+\s*"""), "")
-        t = t.replace(Regex("""^\s*[-*•]+\s*"""), "")
+        t = t.replace(Regex('''^\s*#+\s*'''), "")
+        t = t.replace(Regex('''^\s*[-*•]+\s*'''), "")
 
         // Prevent control / marker characters from leaking into stored memories.
         t = t.replace("`", "")
@@ -57,7 +57,7 @@ class ChatViewModel(
             .replace(">", "")
 
         // Normalize whitespace.
-        t = t.replace(Regex("""\s+"""), " ").trim()
+        t = t.replace(Regex('''\s+'''), " ").trim()
         return t
     }
 
@@ -69,7 +69,7 @@ class ChatViewModel(
         val out = mutableListOf<String>()
 
         // Age: "eu tenho 13 anos"
-        Regex("""\b(eu\s+tenho|tenho)\s+(\d{1,3})\s+anos\b""", RegexOption.IGNORE_CASE)
+        Regex('''\b(eu\s+tenho|tenho)\s+(\d{1,3})\s+anos\b''', RegexOption.IGNORE_CASE)
             .find(t)?.let { m ->
                 val age = m.groupValues.getOrNull(2).orEmpty()
                 age.toIntOrNull()?.let { a ->
@@ -78,14 +78,14 @@ class ChatViewModel(
             }
 
         // Name: "meu nome é Lucas"
-        Regex("""\bmeu\s+nome\s+(é|eh)\s+([\p{L}][\p{L}\s.'-]{1,40})""", RegexOption.IGNORE_CASE)
+        Regex('''\bmeu\s+nome\s+(é|eh)\s+([\p{L}][\p{L}\s.'-]{1,40})''', RegexOption.IGNORE_CASE)
             .find(t)?.let { m ->
                 val name = m.groupValues.getOrNull(2).orEmpty().trim()
                 if (name.isNotBlank()) out.add("O usuário se chama $name.")
             }
 
         // Location: "eu moro em Natal" / "moro em ..."
-        Regex("""\b(eu\s+)?moro\s+em\s+([^\n,.]{2,60})""", RegexOption.IGNORE_CASE)
+        Regex('''\b(eu\s+)?moro\s+em\s+([^\n,.]{2,60})''', RegexOption.IGNORE_CASE)
             .find(t)?.let { m ->
                 val loc = m.groupValues.getOrNull(2).orEmpty().trim()
                 if (loc.isNotBlank()) out.add("O usuário mora em $loc.")
@@ -125,8 +125,8 @@ private fun stripMemoryCommands(text: String): Pair<String, List<String>> {
 
         // Cleanup leftover whitespace / blank lines.
         cleaned = cleaned
-            .replace(Regex("""[ \t]+\n"""), "\n")
-            .replace(Regex("""\n{3,}"""), "\n\n")
+            .replace(Regex('''[ \t]+\n'''), "\n")
+            .replace(Regex('''\n{3,}'''), "\n\n")
             .trimEnd()
 
         return cleaned to mems.distinctBy { it.lowercase() }
@@ -254,13 +254,15 @@ private fun stripMemoryCommands(text: String): Pair<String, List<String>> {
 
         lastUserMessageForRetry = text
 
+        val currentMessages = _state.value.messages
+
         val baseMessages = buildList {
             add(UiMessage("system", strings.systemPrompt))
-            addAll(_state.value.messages.filter { it.role != "system" })
+            addAll(currentMessages.filter { it.role != "system" })
             add(UiMessage("user", text))
         }
 
-        val visible = _state.value.messages +
+        val visible = currentMessages +
             UiMessage("user", text) +
             UiMessage("assistant", "", isThinking = true)
 
@@ -282,9 +284,9 @@ private fun stripMemoryCommands(text: String): Pair<String, List<String>> {
             }
         }
 
-// Capture where the placeholder assistant message lives (so we update the right bubble, even if chats change).
+        // Capture where the placeholder assistant message lives (so we update the right bubble, even if chats change).
         val chatId = _state.value.currentChatId
-        val assistantIndex = _state.value.messages.size
+        val assistantIndex = visible.lastIndex
 
         runningJob = viewModelScope.launch {
             try {
