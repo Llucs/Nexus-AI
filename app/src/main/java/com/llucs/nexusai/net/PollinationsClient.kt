@@ -154,7 +154,9 @@ class PollinationsClient {
 
                         val content = delta.optString("content", "")
                         if (content.isNotEmpty()) {
-                            onChunk(content)
+                            val buffer = StringBuilder()
+buffer.append(content)
+onChunk(buffer.toString())
                         }
                     }
                 }
