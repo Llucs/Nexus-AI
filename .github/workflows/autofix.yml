@@ -1,0 +1,27 @@
+name: Kotlin Auto Fix
+
+on:
+  pull_request:
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Run ktlint format
+        run: ./gradlew ktlintFormat
+
+      - name: Auto commit fixes
+        uses: autofix-ci/action@v1
