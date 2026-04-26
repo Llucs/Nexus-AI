@@ -12,7 +12,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import java.util.Locale
@@ -37,23 +36,7 @@ class ChatViewModel(
 
     private val memoryInlineRegex = Regex("""<<\s*MEMORY_SAVE\s*:\s*(.+?)\s*>>""")
 
-    private fun stripMemoryCommandsStreaming(text: String): Pair<String, List<String>> {
-        // Remove any COMPLETE memory markers, and also hide a PARTIAL marker while streaming.
-        var t = text
-        val (cleaned, mems) = stripMemoryCommands(t)
-        t = cleaned
-
-        val start = t.indexOf("<<MEMORY_SAVE")
-        if (start != -1) {
-            val end = t.indexOf(">>", start)
-            if (end == -1) {
-                // If the model started outputting the marker but hasn't closed it yet, hide it.
-                t = t.substring(0, start).trimEnd()
-            }
-        }
-        return t to mems
-    }
-
+    // Removed stripMemoryCommandsStreaming as streaming is no longer used.
 
     fun updateMemorySettings(memoriesEnabled: Boolean, autoSaveEnabled: Boolean) {
         this.memoriesEnabled = memoriesEnabled
@@ -301,22 +284,15 @@ private fun stripMemoryCommands(text: String): Pair<String, List<String>> {
 
 // Capture where the placeholder assistant message lives (so we update the right bubble, even if chats change).
         val chatId = _state.value.currentChatId
-        val assistantIndex = _state.value.messages.lastIndex
+        val assistantIndex = _state.value.messages.size
 
         runningJob = viewModelScope.launch {
             try {
-                var acc = ""
-                client.stream(baseMessages.map { UiMessage(it.role, it.content) }) { chunk ->
-                    if (!isActive) return@stream
-                    if (chunk.isBlank()) return@stream
-                    acc += chunk
-                    // Hide any full memory markers while streaming.
-                    val display = stripMemoryCommandsStreaming(acc).first
-                    replaceAssistantAt(chatId, assistantIndex, display)
-                }
+                // Replaced client.stream with client.complete
+                val fullResponse = client.complete(baseMessages.map { UiMessage(it.role, it.content) })
 
                 // Final pass: remove memory marker(s) and (optionally) save them.
-                val (cleaned, extracted) = stripMemoryCommands(acc)
+                val (cleaned, extracted) = stripMemoryCommands(fullResponse)
                 var savedNote: String? = null
                 if (extracted.isNotEmpty() && memoriesEnabled && memoryAutoSaveEnabled && memoryStore != null) {
                     extracted.forEach { mem ->
@@ -335,7 +311,7 @@ private fun stripMemoryCommands(text: String): Pair<String, List<String>> {
                     ?.joinToString(" • ")
 
                 // Update last assistant with cleaned content and a note (so UI can show “Memory saved”).
-replaceAssistantAt(chatId, assistantIndex, cleaned, memorySaved = combinedNote)
+                replaceAssistantAt(chatId, assistantIndex, cleaned, memorySaved = combinedNote)
 
                 // Make the note temporary (show only for a moment under this message).
                 if (!combinedNote.isNullOrBlank()) {
