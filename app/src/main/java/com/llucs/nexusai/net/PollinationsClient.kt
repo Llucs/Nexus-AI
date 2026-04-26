@@ -1,11 +1,11 @@
 package com.llucs.nexusai.net
 
 import com.llucs.nexusai.UiMessage
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.DisposableHandle
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.job
+import kotlinx.coroutines.withContext
 import okhttp3.Call
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -17,6 +17,7 @@ import java.io.BufferedReader
 import java.io.IOException
 import java.io.InputStreamReader
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 
 class PollinationsClient {
 
@@ -29,11 +30,10 @@ class PollinationsClient {
     private val url = "https://text.pollinations.ai/openai/chat/completions"
     private val mediaType = "application/json".toMediaType()
 
-    @Volatile
-    private var activeCall: Call? = null
+    private val activeCall = AtomicReference<Call?>(null)
 
     fun cancelActive() {
-        activeCall?.cancel()
+        activeCall.getAndSet(null)?.cancel()
     }
 
     suspend fun complete(history: List<UiMessage>): String = withContext(Dispatchers.IO) {
@@ -46,13 +46,16 @@ class PollinationsClient {
 
         val respText = executeWithRetry(request)
         val obj = JSONObject(respText)
+        
         if (obj.has("error")) {
             val msg = obj.getJSONObject("error").optString("message", "Erro da API")
             throw IOException(msg)
         }
-        val choices = obj.getJSONArray("choices")
-        val msgObj = choices.getJSONObject(0).getJSONObject("message")
-        msgObj.getString("content")
+        
+        obj.getJSONArray("choices")
+            .getJSONObject(0)
+            .getJSONObject("message")
+            .getString("content")
     }
 
     suspend fun stream(history: List<UiMessage>, onChunk: suspend (String) -> Unit) = withContext(Dispatchers.IO) {
@@ -86,51 +89,57 @@ class PollinationsClient {
         return obj.toString()
     }
 
-    private fun executeWithRetry(request: Request): String {
-        var last: Exception? = null
+    private suspend fun executeWithRetry(request: Request): String = withContext(Dispatchers.IO) {
+        var lastException: Exception? = null
+        
         for (attempt in 1..3) {
             val call = client.newCall(request)
-            activeCall = call
+            activeCall.set(call)
+            val handle = coroutineContext.job.invokeOnCompletion { call.cancel() }
+            
             try {
-                call.execute().use { resp ->
+                return@withContext call.execute().use { resp ->
                     val txt = resp.body?.string().orEmpty()
                     if (txt.startsWith("502 Bad Gateway")) throw IOException("502 Bad Gateway")
-                    if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
+                    if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}: $txt")
                     if (txt.isBlank()) throw IOException("Resposta vazia")
-                    return txt
+                    txt
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                last = e
-                try {
-                    Thread.sleep((attempt * 800).toLong())
-                } catch (_: InterruptedException) {
-                }
+                lastException = e
+                delay(attempt * 800L)
             } finally {
-                if (activeCall === call) activeCall = null
+                handle.dispose()
+                activeCall.compareAndSet(call, null)
             }
         }
-        throw (last ?: IOException("Falha na requisição"))
+        throw (lastException ?: IOException("Falha na requisição"))
     }
 
-    private suspend fun executeStreamWithRetry(request: Request, onChunk: suspend (String) -> Unit) {
-        var last: Exception? = null
-        val parentJob = currentCoroutineContext().job
+    private suspend fun executeStreamWithRetry(request: Request, onChunk: suspend (String) -> Unit) = withContext(Dispatchers.IO) {
+        var lastException: Exception? = null
 
         for (attempt in 1..3) {
             val call = client.newCall(request)
-            activeCall = call
-            var handle: DisposableHandle? = null
+            activeCall.set(call)
+            val handle = coroutineContext.job.invokeOnCompletion { call.cancel() }
 
             try {
-                handle = parentJob.invokeOnCompletion { call.cancel() }
-
                 call.execute().use { resp ->
-                    val body = resp.body ?: throw IOException("Sem corpo")
+                    if (!resp.isSuccessful) {
+                        val errorBody = resp.body?.string().orEmpty()
+                        throw IOException("HTTP ${resp.code}: $errorBody")
+                    }
+                    
+                    val body = resp.body ?: throw IOException("Sem corpo na resposta")
                     val reader = BufferedReader(InputStreamReader(body.byteStream()))
 
                     while (true) {
                         val line = reader.readLine() ?: break
                         if (!line.startsWith("data:")) continue
+                        
                         val payload = line.removePrefix("data:").trim()
                         if (payload.isEmpty()) continue
                         if (payload == "[DONE]") break
@@ -139,8 +148,8 @@ class PollinationsClient {
                         val obj = try {
                             JSONObject(payload)
                         } catch (_: Exception) {
-                            null
-                        } ?: continue
+                            continue
+                        }
 
                         if (obj.has("error")) {
                             val msg = obj.getJSONObject("error").optString("message", "Erro da API")
@@ -149,32 +158,24 @@ class PollinationsClient {
 
                         val choices = obj.optJSONArray("choices") ?: continue
                         if (choices.length() == 0) continue
-                        val c0 = choices.optJSONObject(0) ?: continue
-                        val delta = c0.optJSONObject("delta") ?: continue
-
-                        val content = delta.optString("content", "")
-                        if (content.isNotEmpty()) {
-                            val buffer = StringBuilder()
-buffer.append(content)
-onChunk(buffer.toString())
+                        
+                        val content = choices.optJSONObject(0)?.optJSONObject("delta")?.optString("content")
+                        if (!content.isNullOrEmpty()) {
+                            onChunk(content)
                         }
                     }
                 }
-                return
+                return@withContext
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                last = e
-                withContext(Dispatchers.IO) {
-                    try {
-                        Thread.sleep((attempt * 900).toLong())
-                    } catch (_: InterruptedException) {
-                    }
-                }
+                lastException = e
+                delay(attempt * 900L)
             } finally {
-                handle?.dispose()
-                if (activeCall === call) activeCall = null
+                handle.dispose()
+                activeCall.compareAndSet(call, null)
             }
         }
-
-        throw (last ?: IOException("Falha no streaming"))
+        throw (lastException ?: IOException("Falha no streaming"))
     }
 }
