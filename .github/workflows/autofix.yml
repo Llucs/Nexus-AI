@@ -16,20 +16,20 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Fix Gradle permissions
-        run: chmod +x gradlew
-
-      - name: Clean Gradle wrapper cache (fix permission bug)
-        run: rm -rf ~/.gradle/wrapper
-
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
 
+      - name: Setup Gradle (safe cache)
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Fix Gradle wrapper permission
+        run: chmod +x gradlew
+
       - name: Run ktlint format
-        run: ./gradlew ktlintFormat
+        run: ./gradlew ktlintFormat --no-daemon
 
       - name: Create Pull Request with changes
         uses: peter-evans/create-pull-request@v6
