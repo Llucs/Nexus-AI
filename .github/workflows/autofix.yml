@@ -1,15 +1,20 @@
-name: Kotlin Auto Fix
+name: Auto Fix Kotlin + PR
 
 on:
-  pull_request:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
 
 jobs:
-  fix:
+  fix-and-pr:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -23,5 +28,11 @@ jobs:
       - name: Run ktlint format
         run: ./gradlew ktlintFormat
 
-      - name: Auto commit fixes
-        uses: autofix-ci/action@v1
+      - name: Create Pull Request with changes
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "chore: auto format Kotlin code"
+          title: "Auto fix Kotlin formatting"
+          body: "PR automático com correções do ktlint"
+          branch: auto-fix/kotlin-format
+          base: main
