@@ -72,7 +72,7 @@ class PollinationsClient {
         val obj = JSONObject()
         obj.put("model", "openai")
         obj.put("temperature", 0.2)
-        obj.put("top_p", 0.9)
+        obj.put("top_p", 0.8)
         obj.put("stream", stream)
 
         val arr = JSONArray()
