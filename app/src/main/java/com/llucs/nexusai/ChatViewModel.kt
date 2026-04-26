@@ -7,7 +7,7 @@ import com.llucs.nexusai.data.ChatStore
 import com.llucs.nexusai.data.MemoryStore
 import com.llucs.nexusai.data.StoredChat
 import com.llucs.nexusai.data.StoredMessage
-import com.llucs.nexusai.net.PollinationsClient
+import com.llucs.nexusai.net.ApiClient
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,7 +24,7 @@ class ChatViewModel(
     strings: ChatStrings
 ) : ViewModel() {
 
-    private val client = PollinationsClient()
+    private val client = ApiClient()
 
     private var strings: ChatStrings = strings
 
