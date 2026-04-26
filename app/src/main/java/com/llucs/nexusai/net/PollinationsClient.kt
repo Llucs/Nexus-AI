@@ -71,7 +71,7 @@ class PollinationsClient {
     private fun buildBody(history: List<UiMessage>, stream: Boolean): String {
         val obj = JSONObject()
         obj.put("model", "openai")
-        obj.put("temperature", 0.8)
+        obj.put("temperature", 0.2)
         obj.put("top_p", 0.9)
         obj.put("stream", stream)
 
