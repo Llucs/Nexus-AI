@@ -363,8 +363,7 @@ private fun NexusTopBar(sending: Boolean, navLetter: String, onOpenSettings: () 
 
 @Composable
 private fun BrandDot(letter: String, onClick: () -> Unit) {
-    val gradient = Brush.linearGradient(colors = listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary))
-    Box(modifier = Modifier.padding(start = 4.dp).size(38.dp).clip(CircleShape).clickable(onClick = onClick).background(gradient), contentAlignment = Alignment.Center) {
+    Box(modifier = Modifier.padding(start = 4.dp).size(38.dp).clip(CircleShape).clickable(onClick = onClick).background(MaterialTheme.colorScheme.primary), contentAlignment = Alignment.Center) {
         Text(text = letter, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
     }
 }
@@ -422,8 +421,7 @@ private fun MessageBubble(userLetter: String, userName: String, message: UiMessa
 
 @Composable
 private fun NexusAvatar(size: androidx.compose.ui.unit.Dp) {
-    val gradient = Brush.linearGradient(colors = listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary))
-    Box(modifier = Modifier.size(size).clip(CircleShape).background(gradient), contentAlignment = Alignment.Center) {
+    Box(modifier = Modifier.size(size).clip(CircleShape).background(MaterialTheme.colorScheme.primary), contentAlignment = Alignment.Center) {
         Icon(imageVector = Icons.Filled.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(size * 0.55f))
     }
 }
@@ -461,8 +459,7 @@ private fun NexusInputBar(input: String, enabled: Boolean, onInputChange: (Strin
                     shape = RoundedCornerShape(28.dp), keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send), keyboardActions = KeyboardActions(onSend = { if (canSend) onSend() }), maxLines = 6,
                     leadingIcon = { IconButton(onClick = { if (enabled) onMic() }, enabled = enabled, modifier = Modifier.size(40.dp)) { Icon(imageVector = Icons.Filled.Mic, contentDescription = stringResource(R.string.voice_start), tint = MaterialTheme.colorScheme.onSurface.copy(alpha = if (enabled) 0.7f else 0.35f), modifier = Modifier.size(20.dp)) } },
                     trailingIcon = {
-                        val sendGradient = if (canSend) Brush.linearGradient(colors = listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary)) else null
-                        Box(modifier = Modifier.size(44.dp).clip(CircleShape).then(if (canSend) Modifier.background(sendGradient!!) else Modifier.background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))), contentAlignment = Alignment.Center) {
+                        Box(modifier = Modifier.size(44.dp).clip(CircleShape).then(if (canSend) Modifier.background(MaterialTheme.colorScheme.primary) else Modifier.background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))), contentAlignment = Alignment.Center) {
                             IconButton(onClick = { if (canSend) onSend() }, enabled = canSend, modifier = Modifier.size(44.dp)) { Icon(imageVector = Icons.Filled.Send, contentDescription = stringResource(R.string.input_send), tint = if (canSend) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), modifier = Modifier.size(20.dp)) }
                         }
                     },
@@ -481,8 +478,7 @@ private fun EmptySuggestions(onPick: (String) -> Unit) {
 
     Box(modifier = Modifier.fillMaxSize().padding(top = 32.dp), contentAlignment = Alignment.TopCenter) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-            val gradient = Brush.linearGradient(colors = listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary))
-            Text(text = stringResource(R.string.suggestions_title), style = MaterialTheme.typography.displayLarge.copy(brush = gradient), textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 24.dp))
+            Text(text = stringResource(R.string.suggestions_title), style = MaterialTheme.typography.displayLarge, color = MaterialTheme.colorScheme.onBackground, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 24.dp))
             Spacer(modifier = Modifier.height(6.dp))
             Text(text = stringResource(R.string.suggestions_subtitle), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 32.dp))
             Spacer(modifier = Modifier.height(28.dp))
@@ -527,8 +523,7 @@ private fun VoiceInputBar(state: VoiceCaptureState, onToggleShowText: () -> Unit
                         Spacer(modifier = Modifier.width(10.dp))
                         OutlinedButton(onClick = onToggleShowText, shape = RoundedCornerShape(999.dp), colors = ButtonDefaults.outlinedButtonColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.10f), contentColor = MaterialTheme.colorScheme.onSurface), border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)) { Text(text = stringResource(R.string.voice_show_text)) }
                         Spacer(modifier = Modifier.width(10.dp))
-                        val sendGradient = if (text.isNotBlank()) Brush.linearGradient(colors = listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary)) else null
-                        Box(modifier = Modifier.size(46.dp).clip(CircleShape).then(if (text.isNotBlank()) Modifier.background(sendGradient!!) else Modifier.background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))), contentAlignment = Alignment.Center) {
+                        Box(modifier = Modifier.size(46.dp).clip(CircleShape).then(if (text.isNotBlank()) Modifier.background(MaterialTheme.colorScheme.primary) else Modifier.background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))), contentAlignment = Alignment.Center) {
                             IconButton(onClick = { onSendText(text) }, enabled = text.isNotBlank(), modifier = Modifier.size(46.dp)) { Icon(imageVector = Icons.Filled.Send, contentDescription = stringResource(R.string.input_send), tint = if (text.isNotBlank()) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), modifier = Modifier.size(20.dp)) }
                         }
                     }
