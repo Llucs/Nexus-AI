@@ -2,6 +2,7 @@ package com.llucs.nexusai.net
 
 import com.llucs.nexusai.UiMessage
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.job
 import kotlinx.coroutines.withContext
 import okhttp3.Call
 import okhttp3.MediaType.Companion.toMediaType

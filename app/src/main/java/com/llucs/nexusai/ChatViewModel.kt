@@ -32,9 +32,9 @@ class ChatViewModel(
     private var pendingMemorySavedNote: String? = null
     // Marker that the assistant can output to save a memory (kept hidden from chat UI).
     // IMPORTANT: this must be on its OWN line, and ideally at the very end of the message.
-    private val memorySaveRegex = Regex("(?m)^[\t ]*<<\s*MEMORY_SAVE\s*:\s*(.+?)\s*>>\s*$")
+    private val memorySaveRegex = Regex("(?m)^[\\t ]*<<\\s*MEMORY_SAVE\\s*:\\s*(.+?)\\s*>>\\s*$")
 
-    private val memoryInlineRegex = Regex("<<\s*MEMORY_SAVE\s*:\s*(.+?)\s*>>")
+    private val memoryInlineRegex = Regex("<<\\s*MEMORY_SAVE\\s*:\\s*(.+?)\\s*>>")
 
     // Removed stripMemoryCommandsStreaming as streaming is no longer used.
 
