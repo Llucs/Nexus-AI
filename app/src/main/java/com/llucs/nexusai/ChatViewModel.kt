@@ -280,7 +280,7 @@ private fun stripMemoryCommands(text: String): Pair<String, List<String>> {
                 viewModelScope.launch {
                     extractedFromUser.forEach { mem -> runCatching { memoryStore.addMemory(mem) } }
                 }
-                pendingMemorySavedNote = extractedFromFromUser.joinToString(" • ")
+                pendingMemorySavedNote = extractedFromUser.joinToString(" • ")
             }
         }
 
