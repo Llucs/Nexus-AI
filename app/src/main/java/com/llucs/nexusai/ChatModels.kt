@@ -4,8 +4,24 @@ data class UiMessage(
     val role: String,
     val content: String,
     val isThinking: Boolean = false,
-    // When the assistant saves a memory, we show a small note under the message.
-    val memorySaved: String? = null
+    val memorySaved: String? = null,
+    val tokenUsage: TokenUsage? = null,
+    val modelName: String? = null
+)
+
+data class TokenUsage(
+    val promptTokens: Int = 0,
+    val completionTokens: Int = 0,
+    val totalTokens: Int = 0
+) {
+    val formatted: String
+        get() = "↕$totalTokens"
+}
+
+data class ApiResponse(
+    val content: String,
+    val modelName: String?,
+    val usage: TokenUsage?
 )
 
 data class SnackbarEvent(
@@ -21,18 +37,17 @@ data class ChatUiState(
     val input: String = "",
     val sending: Boolean = false,
     val historyOpen: Boolean = false,
-    val snackbar: SnackbarEvent? = null
+    val snackbar: SnackbarEvent? = null,
+    val lastTokenUsage: TokenUsage? = null,
+    val lastModelName: String? = null
 )
 
-/**
- * Strings that the ViewModel uses (so we can localize without holding an Android Context).
- */
 data class ChatStrings(
     val systemPrompt: String,
     val greeting: String,
     val interrupted: String,
     val genericError: String,
-    val assistantErrorTemplate: String, // e.g. "Erro: %s"
-    val snackFailedTemplate: String,    // e.g. "Falhou: %s"
+    val assistantErrorTemplate: String,
+    val snackFailedTemplate: String,
     val retryActionLabel: String
 )

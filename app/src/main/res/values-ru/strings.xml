@@ -49,6 +49,8 @@
     <string name="settings_version">Версия</string>
     <string name="settings_source_code">Исходный код</string>
     <string name="settings_not_set">Не задано</string>
+    <string name="settings_token_usage">Использование токенов</string>
+    <string name="settings_token_detail">Prompt: %1$d · Completion: %2$d · Всего: %3$d</string>
 
     <string name="language_pt">Португальский</string>
     <string name="language_en">Английский</string>
@@ -74,6 +76,7 @@
     <string name="voice_show_text">Показать текст</string>
     <string name="voice_listening_hint">Слушаю…</string>
     <string name="suggestions_title">Чем помочь?</string>
+    <string name="suggestions_subtitle">Выберите подсказку или напишите что-нибудь</string>
     <string name="suggestions_create_image">Создать изображение</string>
     <string name="suggestions_summarize">Сжать текст</string>
     <string name="suggestions_surprise">Удиви меня</string>

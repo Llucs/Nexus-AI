@@ -5,7 +5,6 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
@@ -28,12 +27,11 @@ import com.llucs.nexusai.data.UserPrefs
 import com.llucs.nexusai.ui.NexusTheme
 import com.llucs.nexusai.ui.chat.ChatScreen
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import java.util.Locale
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : ComponentActivity() {
 
-        private fun defaultLanguageCode(): String {
+    private fun defaultLanguageCode(): String {
         val sys = Locale.getDefault().language.lowercase(Locale.ROOT)
         return when {
             sys.startsWith("pt") -> "pt"
@@ -43,7 +41,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-        private fun normalizeLanguage(code: String?): String {
+    private fun normalizeLanguage(code: String?): String {
         val c = (code ?: "").trim().lowercase(Locale.ROOT)
         return when {
             c == "pt" || c.startsWith("pt") -> "pt"
@@ -55,7 +53,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-        private fun applyLanguage(code: String) {
+    private fun applyLanguage(code: String) {
         val tags = when (code) {
             "pt" -> "pt-BR"
             "en" -> "en"
@@ -71,30 +69,24 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-    installSplashScreen()
+        installSplashScreen()
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
 
-    // Apply saved locale as early as possible so Compose stringResource() updates correctly.
-    val earlyPrefs = UserPrefs(applicationContext)
-    val earlyLang = runBlocking { normalizeLanguage(earlyPrefs.getLanguage()) }
-    applyLanguage(earlyLang)
+        setContent {
+            NexusTheme {
+                val context = LocalContext.current
+                val scope = rememberCoroutineScope()
 
-    super.onCreate(savedInstanceState)
-    enableEdgeToEdge()
+                val chatStore = remember { ChatStore(context.applicationContext) }
+                val prefs = remember { UserPrefs(context.applicationContext) }
+                val memoryStore = remember { MemoryStore(context.applicationContext) }
 
-    setContent {
-        NexusTheme {
-            val context = LocalContext.current
-            val activity = context as? ComponentActivity
-            val scope = rememberCoroutineScope()
-
-            val chatStore = remember { ChatStore(context.applicationContext) }
-            val prefs = remember { UserPrefs(context.applicationContext) }
-            val memoryStore = remember { MemoryStore(context.applicationContext) }
-
-            var prefsLoaded by remember { mutableStateOf(false) }
-            var userName by rememberSaveable { mutableStateOf("") }
-            var nameInput by rememberSaveable { mutableStateOf("") }
-            var languageCode by rememberSaveable { mutableStateOf(defaultLanguageCode()) }
+                var prefsLoaded by remember { mutableStateOf(false) }
+                var userName by rememberSaveable { mutableStateOf("") }
+                var nameInput by rememberSaveable { mutableStateOf("") }
+                var languageCode by rememberSaveable { mutableStateOf(defaultLanguageCode()) }
+                var showNameDialog by rememberSaveable { mutableStateOf(false) }
 
                 LaunchedEffect(Unit) {
                     val savedName = prefs.getUserName().orEmpty().trim()
@@ -105,8 +97,11 @@ class MainActivity : AppCompatActivity() {
 
                     userName = savedName
                     nameInput = savedName
-
                     prefsLoaded = true
+
+                    if (savedName.isBlank()) {
+                        showNameDialog = true
+                    }
                 }
 
                 val lang = normalizeLanguage(languageCode)
@@ -120,10 +115,7 @@ class MainActivity : AppCompatActivity() {
                         languageCode = lang,
                         onEditName = {
                             nameInput = userName
-                            scope.launch {
-                                prefs.setUserName("")
-                                userName = ""
-                            }
+                            showNameDialog = true
                         },
                         onChangeLanguage = { newCode: String ->
                             val fixed = normalizeLanguage(newCode)
@@ -131,13 +123,13 @@ class MainActivity : AppCompatActivity() {
                                 scope.launch { prefs.setLanguage(fixed) }
                                 languageCode = fixed
                                 applyLanguage(fixed)
-                                activity?.recreate()
+                                recreate()
                             }
                         }
                     )
                 }
 
-                if (prefsLoaded && userName.isBlank()) {
+                if (showNameDialog) {
                     AlertDialog(
                         onDismissRequest = { },
                         title = { Text(if (lang == "pt") "Seu nome" else "Your name") },
@@ -164,6 +156,7 @@ class MainActivity : AppCompatActivity() {
                                         userName = fixed
                                         nameInput = fixed
                                     }
+                                    showNameDialog = false
                                 }
                             ) { Text(if (lang == "pt") "Salvar" else "Save") }
                         }

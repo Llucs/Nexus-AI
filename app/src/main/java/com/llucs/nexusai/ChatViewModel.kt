@@ -30,66 +30,52 @@ class ChatViewModel(
     private var memoriesEnabled: Boolean = true
     private var memoryAutoSaveEnabled: Boolean = true
     private var pendingMemorySavedNote: String? = null
-    // Marker that the assistant can output to save a memory (kept hidden from chat UI).
-    // IMPORTANT: this must be on its OWN line, and ideally at the very end of the message.
+
     private val memorySaveRegex = Regex("(?m)^[\\t ]*<<\\s*MEMORY_SAVE\\s*:\\s*(.+?)\\s*>>\\s*$")
-
     private val memoryInlineRegex = Regex("<<\\s*MEMORY_SAVE\\s*:\\s*(.+?)\\s*>>")
-
-    // Removed stripMemoryCommandsStreaming as streaming is no longer used.
 
     fun updateMemorySettings(memoriesEnabled: Boolean, autoSaveEnabled: Boolean) {
         this.memoriesEnabled = memoriesEnabled
         this.memoryAutoSaveEnabled = autoSaveEnabled
     }
 
-    
     private fun cleanMemoryText(raw: String): String {
         var t = raw.trim()
-
-        // Remove common markdown prefixes that can leak into memories.
         t = t.replace(Regex("^\\s*#+\\s*"), "")
         t = t.replace(Regex("^\\s*[-*•]+\\s*"), "")
-
-        // Prevent control / marker characters from leaking into stored memories.
         t = t.replace("`", "")
             .replace("<", "")
             .replace(">", "")
-
-        // Normalize whitespace.
         t = t.replace(Regex("\\s+"), " ").trim()
         return t
     }
 
-    
     private fun extractPersonalMemoriesFromUser(userText: String): List<String> {
         val t = userText.trim()
         if (t.isBlank()) return emptyList()
 
         val out = mutableListOf<String>()
+        val lower = t.lowercase()
 
-        // Age: "eu tenho 13 anos"
-        Regex("\\b(eu\\s+tenho|tenho)\\s+(\\d{1,3})\\s+anos\\b", RegexOption.IGNORE_CASE)
-            .find(t)?.let { m ->
-                val age = m.groupValues.getOrNull(2).orEmpty()
-                age.toIntOrNull()?.let { a ->
-                    if (a in 3..120) out.add("O usuário tem $a anos.")
-                }
-            }
+        if (Regex("\\b(eu\\s+tenho|tenho)\\s+(\\d{1,3})\\s+anos\\b", RegexOption.IGNORE_CASE)
+                .find(t)?.let { m ->
+                    val age = m.groupValues.getOrNull(2).orEmpty()
+                    age.toIntOrNull()?.let { a ->
+                        if (a in 3..120) out.add("O usuário tem $a anos.")
+                    }
+                } != null) {}
 
-        // Name: "meu nome é Lucas"
-        Regex("\\bmeu\\s+nome\\s+(é|eh)\\s+([\\p{L}][\\p{L}\\s.\\'-]{1,40})", RegexOption.IGNORE_CASE)
-            .find(t)?.let { m ->
-                val name = m.groupValues.getOrNull(2).orEmpty().trim()
-                if (name.isNotBlank()) out.add("O usuário se chama $name.")
-            }
+        if (Regex("\\bmeu\\s+nome\\s+(é|eh)\\s+([\\p{L}][\\p{L}\\s.\\'-]{1,40})", RegexOption.IGNORE_CASE)
+                .find(t)?.let { m ->
+                    val name = m.groupValues.getOrNull(2).orEmpty().trim()
+                    if (name.isNotBlank()) out.add("O usuário se chama $name.")
+                } != null) {}
 
-        // Location: "eu moro em Natal" / "moro em ..."
-        Regex("\\b(eu\\s+)?moro\\s+em\\s+([^\\n,.]{2,60})", RegexOption.IGNORE_CASE)
-            .find(t)?.let { m ->
-                val loc = m.groupValues.getOrNull(2).orEmpty().trim()
-                if (loc.isNotBlank()) out.add("O usuário mora em $loc.")
-            }
+        if (Regex("\\b(eu\\s+)?moro\\s+em\\s+([^\\n,.]{2,60})", RegexOption.IGNORE_CASE)
+                .find(t)?.let { m ->
+                    val loc = m.groupValues.getOrNull(2).orEmpty().trim()
+                    if (loc.isNotBlank()) out.add("O usuário mora em $loc.")
+                } != null) {}
 
         return out
             .map { cleanMemoryText(it) }
@@ -97,19 +83,16 @@ class ChatViewModel(
             .distinctBy { it.lowercase() }
     }
 
-private fun stripMemoryCommands(text: String): Pair<String, List<String>> {
+    private fun stripMemoryCommands(text: String): Pair<String, List<String>> {
         if (!text.contains("MEMORY_SAVE")) return text to emptyList()
 
         val mems = mutableListOf<String>()
 
-        // 1) Extract any inline markers: <<MEMORY_SAVE: ...>>
         memoryInlineRegex.findAll(text).forEach { m ->
             val mem = cleanMemoryText(m.groupValues.getOrNull(1).orEmpty())
             if (mem.isNotBlank()) mems.add(mem)
         }
 
-        // 2) Also support the strict "marker on its own line" format.
-        // (If the model outputs both, distinct() below will de-dup.)
         for (line in text.lines()) {
             val m = memorySaveRegex.matchEntire(line)
             if (m != null) {
@@ -118,12 +101,9 @@ private fun stripMemoryCommands(text: String): Pair<String, List<String>> {
             }
         }
 
-        // 3) Remove markers from visible text.
         var cleaned = text.replace(memoryInlineRegex, "")
-        // If there\'s a raw line marker, remove it too.
         cleaned = cleaned.lines().filter { memorySaveRegex.matchEntire(it) == null }.joinToString("\n")
 
-        // Cleanup leftover whitespace / blank lines.
         cleaned = cleaned
             .replace(Regex("[ \t]+\n"), "\n")
             .replace(Regex("\n{3,}"), "\n\n")
@@ -131,7 +111,6 @@ private fun stripMemoryCommands(text: String): Pair<String, List<String>> {
 
         return cleaned to mems.distinctBy { it.lowercase() }
     }
-
 
     private fun greetingMessage(): UiMessage = UiMessage("assistant", strings.greeting)
 
@@ -174,7 +153,9 @@ private fun stripMemoryCommands(text: String): Pair<String, List<String>> {
             messages = listOf(greetingMessage()),
             input = "",
             sending = false,
-            historyOpen = false
+            historyOpen = false,
+            lastTokenUsage = null,
+            lastModelName = null
         )
         viewModelScope.launch {
             store.upsertChat(toStoredChat(_state.value))
@@ -217,7 +198,9 @@ private fun stripMemoryCommands(text: String): Pair<String, List<String>> {
                 messages = listOf(greetingMessage()),
                 input = "",
                 sending = false,
-                historyOpen = false
+                historyOpen = false,
+                lastTokenUsage = null,
+                lastModelName = null
             )
             store.upsertChat(toStoredChat(_state.value))
             refreshChats()
@@ -272,8 +255,6 @@ private fun stripMemoryCommands(text: String): Pair<String, List<String>> {
             sending = true
         )
 
-        
-        // Auto-extract personal memories from the USER message (so user doesn\'t need to ask).
         if (memoriesEnabled && memoryAutoSaveEnabled && memoryStore != null) {
             val extractedFromUser = extractPersonalMemoriesFromUser(text)
             if (extractedFromUser.isNotEmpty()) {
@@ -284,17 +265,14 @@ private fun stripMemoryCommands(text: String): Pair<String, List<String>> {
             }
         }
 
-        // Capture where the placeholder assistant message lives (so we update the right bubble, even if chats change).
         val chatId = _state.value.currentChatId
         val assistantIndex = visible.lastIndex
 
         runningJob = viewModelScope.launch {
             try {
-                // Replaced client.stream with client.complete
-                val fullResponse = client.complete(baseMessages.map { UiMessage(it.role, it.content) })
+                val response = client.complete(baseMessages.map { UiMessage(it.role, it.content) })
 
-                // Final pass: remove memory marker(s) and (optionally) save them.
-                val (cleaned, extracted) = stripMemoryCommands(fullResponse)
+                val (cleaned, extracted) = stripMemoryCommands(response.content)
                 var savedNote: String? = null
                 if (extracted.isNotEmpty() && memoriesEnabled && memoryAutoSaveEnabled && memoryStore != null) {
                     extracted.forEach { mem ->
@@ -303,7 +281,6 @@ private fun stripMemoryCommands(text: String): Pair<String, List<String>> {
                     savedNote = extracted.joinToString(" • ")
                 }
 
-                // If we already saved something from the USER message, attach that note here (only for this reply).
                 val pending = pendingMemorySavedNote
                 pendingMemorySavedNote = null
                 val combinedNote = listOfNotNull(savedNote, pending)
@@ -312,21 +289,30 @@ private fun stripMemoryCommands(text: String): Pair<String, List<String>> {
                     .takeIf { it.isNotEmpty() }
                     ?.joinToString(" • ")
 
-                // Update last assistant with cleaned content and a note (so UI can show “Memory saved”).
-                replaceAssistantAt(chatId, assistantIndex, cleaned, memorySaved = combinedNote)
+                replaceAssistantAt(chatId, assistantIndex, cleaned,
+                    memorySaved = combinedNote,
+                    tokenUsage = response.usage,
+                    modelName = response.modelName
+                )
 
-                // Make the note temporary (show only for a moment under this message).
+                _state.value = _state.value.copy(
+                    sending = false,
+                    lastTokenUsage = response.usage,
+                    lastModelName = response.modelName
+                )
+
                 if (!combinedNote.isNullOrBlank()) {
                     scheduleClearMemorySaved(chatId, assistantIndex, combinedNote)
                 }
 
-                _state.value = _state.value.copy(sending = false)
                 persist()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 val msg = e.message ?: strings.genericError
-                replaceAssistantAt(chatId, assistantIndex, String.format(Locale.getDefault(), strings.assistantErrorTemplate, msg))
+                replaceAssistantAt(chatId, assistantIndex,
+                    String.format(Locale.getDefault(), strings.assistantErrorTemplate, msg)
+                )
                 _state.value = _state.value.copy(
                     sending = false,
                     snackbar = SnackbarEvent(
@@ -342,14 +328,8 @@ private fun stripMemoryCommands(text: String): Pair<String, List<String>> {
         }
     }
 
-    /**
-     * Updates localized strings / user name hints without recreating the ViewModel.
-     * This keeps chat history but ensures the system prompt and greeting are correct.
-     */
     fun updateStrings(newStrings: ChatStrings) {
         strings = newStrings
-
-        // If the chat only has the initial greeting, update it (so it can include the user\'s name).
         val msgs = _state.value.messages
         if (msgs.size == 1 && msgs.firstOrNull()?.role == "assistant") {
             _state.value = _state.value.copy(messages = listOf(greetingMessage()))
@@ -364,12 +344,9 @@ private fun stripMemoryCommands(text: String): Pair<String, List<String>> {
         send()
     }
 
-    
-    
     private fun scheduleClearMemorySaved(chatId: String, index: Int, note: String) {
         viewModelScope.launch {
             delay(2500)
-            // Only clear if we\'re still on the same chat and the same message still has the same note.
             if (_state.value.currentChatId != chatId) return@launch
             val msgs = _state.value.messages.toMutableList()
             if (index < 0 || index >= msgs.size) return@launch
@@ -382,14 +359,15 @@ private fun stripMemoryCommands(text: String): Pair<String, List<String>> {
         }
     }
 
-private fun replaceAssistantAt(
+    private fun replaceAssistantAt(
         chatId: String,
         index: Int,
         content: String,
         memorySaved: String? = null,
+        tokenUsage: TokenUsage? = null,
+        modelName: String? = null,
         isThinking: Boolean = false
     ) {
-        // Guard against race conditions when the user switches chats mid-stream.
         if (_state.value.currentChatId != chatId) return
 
         val updated = _state.value.messages.toMutableList()
@@ -400,11 +378,12 @@ private fun replaceAssistantAt(
             role = "assistant",
             content = content,
             isThinking = isThinking,
-            memorySaved = memorySaved
+            memorySaved = memorySaved,
+            tokenUsage = tokenUsage,
+            modelName = modelName
         )
         _state.value = _state.value.copy(messages = updated)
     }
-
 
     private suspend fun persist() {
         store.upsertChat(toStoredChat(_state.value))

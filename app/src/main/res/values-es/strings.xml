@@ -49,6 +49,8 @@
     <string name="settings_version">Versión</string>
     <string name="settings_source_code">Código fuente</string>
     <string name="settings_not_set">No definido</string>
+    <string name="settings_token_usage">Uso de tokens</string>
+    <string name="settings_token_detail">Prompt: %1$d · Completion: %2$d · Total: %3$d</string>
 
     <string name="language_pt">Portugués</string>
     <string name="language_en">Inglés</string>
@@ -74,6 +76,7 @@
     <string name="voice_show_text">Mostrar texto</string>
     <string name="voice_listening_hint">Escuchando…</string>
     <string name="suggestions_title">¿Cómo puedo ayudar?</string>
+    <string name="suggestions_subtitle">Elige una sugerencia o escribe algo</string>
     <string name="suggestions_create_image">Crear imagen</string>
     <string name="suggestions_summarize">Resumir texto</string>
     <string name="suggestions_surprise">Sorprender</string>

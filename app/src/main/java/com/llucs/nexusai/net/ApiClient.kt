@@ -1,5 +1,7 @@
 package com.llucs.nexusai.net
 
+import com.llucs.nexusai.ApiResponse
+import com.llucs.nexusai.TokenUsage
 import com.llucs.nexusai.UiMessage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.job
@@ -33,7 +35,7 @@ class ApiClient {
         activeCall.getAndSet(null)?.cancel()
     }
 
-    suspend fun complete(history: List<UiMessage>): String =
+    suspend fun complete(history: List<UiMessage>): ApiResponse =
         withContext(Dispatchers.IO) {
             val messages = JSONArray()
             for (msg in history) {
@@ -56,18 +58,29 @@ class ApiClient {
                 .build()
 
             val respText = executeWithRetry(request)
-
             val obj = JSONObject(respText)
 
             if (obj.has("error")) {
                 throw IOException(obj.getString("error"))
             }
 
+            val modelName = obj.optString("model", null)?.ifBlank { null }
+
+            val usageJson = obj.optJSONObject("usage")
+            val usage = usageJson?.let {
+                TokenUsage(
+                    promptTokens = it.optInt("prompt_tokens", 0),
+                    completionTokens = it.optInt("completion_tokens", 0),
+                    totalTokens = it.optInt("total_tokens", 0)
+                )
+            }
+
             val choices = obj.optJSONArray("choices")
             if (choices != null && choices.length() > 0) {
                 val msg = choices.getJSONObject(0).optJSONObject("message")
                 if (msg != null) {
-                    msg.optString("content", "")
+                    val content = msg.optString("content", "")
+                    ApiResponse(content, modelName, usage)
                 } else {
                     throw IOException("Resposta inválida: sem message")
                 }
