@@ -474,18 +474,23 @@ private fun NexusInputBar(input: String, enabled: Boolean, onInputChange: (Strin
 
 @Composable
 private fun EmptySuggestions(onPick: (String) -> Unit) {
+    val promptCreateImage = stringResource(R.string.prompt_create_image)
+    val promptSummarize = stringResource(R.string.prompt_summarize)
+    val promptSurprise = stringResource(R.string.prompt_surprise)
+    val promptHelpWrite = stringResource(R.string.prompt_help_write)
+
     Box(modifier = Modifier.fillMaxSize().padding(top = 32.dp), contentAlignment = Alignment.TopCenter) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
             val gradient = Brush.linearGradient(colors = listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary))
-            Text(text = stringResource(R.string.suggestions_title), style = MaterialTheme.typography.displayLarge, textAlign = TextAlign.Center, brush = gradient, modifier = Modifier.padding(horizontal = 24.dp))
+            Text(text = stringResource(R.string.suggestions_title), style = MaterialTheme.typography.displayLarge.copy(brush = gradient), textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 24.dp))
             Spacer(modifier = Modifier.height(6.dp))
             Text(text = stringResource(R.string.suggestions_subtitle), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 32.dp))
             Spacer(modifier = Modifier.height(28.dp))
             Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                QuickActionCard(icon = Icons.Filled.Image, text = stringResource(R.string.suggestions_create_image), onClick = { onPick(stringResource(R.string.prompt_create_image)) })
-                QuickActionCard(icon = Icons.Filled.Summarize, text = stringResource(R.string.suggestions_summarize), onClick = { onPick(stringResource(R.string.prompt_summarize)) })
-                QuickActionCard(icon = Icons.Filled.AutoAwesome, text = stringResource(R.string.suggestions_surprise), onClick = { onPick(stringResource(R.string.prompt_surprise)) })
-                QuickActionCard(icon = Icons.Filled.Edit, text = stringResource(R.string.suggestions_help_write), onClick = { onPick(stringResource(R.string.prompt_help_write)) })
+                QuickActionCard(icon = Icons.Filled.Image, text = stringResource(R.string.suggestions_create_image), onClick = { onPick(promptCreateImage) })
+                QuickActionCard(icon = Icons.Filled.Summarize, text = stringResource(R.string.suggestions_summarize), onClick = { onPick(promptSummarize) })
+                QuickActionCard(icon = Icons.Filled.AutoAwesome, text = stringResource(R.string.suggestions_surprise), onClick = { onPick(promptSurprise) })
+                QuickActionCard(icon = Icons.Filled.Edit, text = stringResource(R.string.suggestions_help_write), onClick = { onPick(promptHelpWrite) })
             }
         }
     }
