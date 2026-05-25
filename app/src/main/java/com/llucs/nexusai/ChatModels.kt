@@ -15,7 +15,7 @@ data class TokenUsage(
     val totalTokens: Int = 0
 ) {
     val formatted: String
-        get() = "↕$totalTokens"
+        get() = "\u2191$totalTokens"
 }
 
 data class ApiResponse(
