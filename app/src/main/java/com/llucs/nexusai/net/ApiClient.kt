@@ -2,12 +2,13 @@ package com.llucs.nexusai.net
 
 import com.llucs.nexusai.UiMessage
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.job
 import kotlinx.coroutines.withContext
-import okhttp3.*
+import okhttp3.Call
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
 import java.util.concurrent.TimeUnit
@@ -16,14 +17,13 @@ import java.util.concurrent.atomic.AtomicReference
 class ApiClient {
 
     private val client = OkHttpClient.Builder()
-        .callTimeout(60, TimeUnit.SECONDS)
+        .callTimeout(120, TimeUnit.SECONDS)
         .connectTimeout(20, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
+        .readTimeout(120, TimeUnit.SECONDS)
         .build()
 
-    private val url =
-        "https://devtoolbox-api.devtoolbox-api.workers.dev/ai/generate"
-
+    private val baseUrl = "https://opencode.ai/zen/v1/chat/completions"
+    private val model = "deepseek-v4-flash-free"
     private val mediaType = "application/json".toMediaType()
 
     private val activeCall = AtomicReference<Call?>()
@@ -34,17 +34,24 @@ class ApiClient {
 
     suspend fun complete(history: List<UiMessage>): String =
         withContext(Dispatchers.IO) {
-
-            val prompt = buildPrompt(history)
+            val messages = JSONArray()
+            for (msg in history) {
+                messages.put(JSONObject().apply {
+                    put("role", msg.role)
+                    put("content", msg.content)
+                })
+            }
 
             val bodyJson = JSONObject().apply {
-                put("prompt", prompt)
+                put("model", model)
+                put("messages", messages)
             }
 
             val request = Request.Builder()
-                .url(url)
+                .url(baseUrl)
                 .post(bodyJson.toString().toRequestBody(mediaType))
                 .header("Content-Type", "application/json")
+                .header("Authorization", "Bearer public")
                 .build()
 
             val respText = executeWithRetry(request)
@@ -55,19 +62,21 @@ class ApiClient {
                 throw IOException(obj.getString("error"))
             }
 
-            obj.getString("response")
+            val choices = obj.optJSONArray("choices")
+            if (choices != null && choices.length() > 0) {
+                val msg = choices.getJSONObject(0).optJSONObject("message")
+                if (msg != null) {
+                    msg.optString("content", "")
+                } else {
+                    throw IOException("Resposta inválida: sem message")
+                }
+            } else {
+                throw IOException("Resposta inválida: sem choices")
+            }
         }
-
-    private fun buildPrompt(history: List<UiMessage>): String {
-        return history.joinToString("\n") {
-            val role = if (it.role == "user") "Usuário" else "IA"
-            "$role: ${it.content}"
-        } + "\nIA:"
-    }
 
     private suspend fun executeWithRetry(request: Request): String =
         withContext(Dispatchers.IO) {
-
             var lastException: Exception? = null
 
             for (attempt in 1..3) {
@@ -94,7 +103,9 @@ class ApiClient {
                     }
                 } catch (e: Exception) {
                     lastException = e
-                    delay(attempt * 800L)
+                    if (attempt < 3) {
+                        kotlinx.coroutines.delay(attempt * 800L)
+                    }
                 } finally {
                     handle.dispose()
                     activeCall.compareAndSet(call, null)

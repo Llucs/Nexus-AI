@@ -5,7 +5,6 @@ import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.RadioButton
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -70,7 +69,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -733,18 +731,6 @@ private fun BrandDot(letter: String, onClick: () -> Unit) {
             color = MaterialTheme.colorScheme.onPrimary
         )
     }
-}
-
-private fun cleanAssistantText(s: String): String {
-    return s
-        .replace("\\n", "\n")
-        .replace("\r\n", "\n")
-        .replace(Regex("""\*\*(.*?)\*\*"""), "$1")
-        .replace(Regex("""`{1,3}"""), "")
-        .replace(Regex("""^#{1,6}\s*""", RegexOption.MULTILINE), "")
-        .replace(Regex("""\\\(|\\\)"""), "")
-        .replace(Regex("""\\\[|\\\]"""), "")
-        .trim()
 }
 
 @OptIn(ExperimentalFoundationApi::class)
