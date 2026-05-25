@@ -82,10 +82,10 @@ class ApiClient {
                     val content = msg.optString("content", "")
                     ApiResponse(content, modelName, usage)
                 } else {
-                    throw IOException("Resposta inválida: sem message")
+                    throw IOException("Resposta inv\u00e1lida: sem message")
                 }
             } else {
-                throw IOException("Resposta inválida: sem choices")
+                throw IOException("Resposta inv\u00e1lida: sem choices")
             }
         }
 
@@ -126,6 +126,6 @@ class ApiClient {
                 }
             }
 
-            throw lastException ?: IOException("Falha na requisição")
+            throw lastException ?: IOException("Falha na requisi\u00e7\u00e3o")
         }
 }

@@ -99,25 +99,17 @@ class MainActivity : ComponentActivity() {
                     nameInput = savedName
                     prefsLoaded = true
 
-                    if (savedName.isBlank()) {
-                        showNameDialog = true
-                    }
+                    if (savedName.isBlank()) showNameDialog = true
                 }
 
                 val lang = normalizeLanguage(languageCode)
 
                 Surface(color = MaterialTheme.colorScheme.background) {
                     ChatScreen(
-                        store = chatStore,
-                        prefs = prefs,
-                        memoryStore = memoryStore,
-                        userName = userName,
-                        languageCode = lang,
-                        onEditName = {
-                            nameInput = userName
-                            showNameDialog = true
-                        },
-                        onChangeLanguage = { newCode: String ->
+                        store = chatStore, prefs = prefs, memoryStore = memoryStore,
+                        userName = userName, languageCode = lang,
+                        onEditName = { nameInput = userName; showNameDialog = true },
+                        onChangeLanguage = { newCode ->
                             val fixed = normalizeLanguage(newCode)
                             if (fixed != lang) {
                                 scope.launch { prefs.setLanguage(fixed) }
@@ -138,11 +130,7 @@ class MainActivity : ComponentActivity() {
                                 value = nameInput,
                                 onValueChange = { nameInput = it.take(24) },
                                 singleLine = true,
-                                label = {
-                                    Text(
-                                        if (lang == "pt") "Como você quer ser chamado?" else "What should I call you?"
-                                    )
-                                }
+                                label = { Text(if (lang == "pt") "Como voc\u00ea quer ser chamado?" else "What should I call you?") }
                             )
                         },
                         confirmButton = {
@@ -151,11 +139,7 @@ class MainActivity : ComponentActivity() {
                                 enabled = ok,
                                 onClick = {
                                     val fixed = nameInput.trim()
-                                    scope.launch {
-                                        prefs.setUserName(fixed)
-                                        userName = fixed
-                                        nameInput = fixed
-                                    }
+                                    scope.launch { prefs.setUserName(fixed); userName = fixed; nameInput = fixed }
                                     showNameDialog = false
                                 }
                             ) { Text(if (lang == "pt") "Salvar" else "Save") }

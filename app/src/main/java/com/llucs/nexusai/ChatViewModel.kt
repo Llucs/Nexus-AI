@@ -24,13 +24,10 @@ class ChatViewModel(
 ) : ViewModel() {
 
     private val client = ApiClient()
-
     private var strings: ChatStrings = strings
-
     private var memoriesEnabled: Boolean = true
     private var memoryAutoSaveEnabled: Boolean = true
     private var pendingMemorySavedNote: String? = null
-
     private val memorySaveRegex = Regex("(?m)^[\\t ]*<<\\s*MEMORY_SAVE\\s*:\\s*(.+?)\\s*>>\\s*$")
     private val memoryInlineRegex = Regex("<<\\s*MEMORY_SAVE\\s*:\\s*(.+?)\\s*>>")
 
@@ -43,49 +40,40 @@ class ChatViewModel(
         var t = raw.trim()
         t = t.replace(Regex("^\\s*#+\\s*"), "")
         t = t.replace(Regex("^\\s*[-*•]+\\s*"), "")
-        t = t.replace("`", "")
-            .replace("<", "")
-            .replace(">", "")
-        t = t.replace(Regex("\\s+"), " ").trim()
-        return t
+        t = t.replace("`", "").replace("<", "").replace(">", "")
+        return t.replace(Regex("\\s+"), " ").trim()
     }
 
     private fun extractPersonalMemoriesFromUser(userText: String): List<String> {
         val t = userText.trim()
         if (t.isBlank()) return emptyList()
-
         val out = mutableListOf<String>()
-        val lower = t.lowercase()
 
-        if (Regex("\\b(eu\\s+tenho|tenho)\\s+(\\d{1,3})\\s+anos\\b", RegexOption.IGNORE_CASE)
-                .find(t)?.let { m ->
-                    val age = m.groupValues.getOrNull(2).orEmpty()
-                    age.toIntOrNull()?.let { a ->
-                        if (a in 3..120) out.add("O usuário tem $a anos.")
-                    }
-                } != null) {}
+        Regex("\\b(eu\\s+tenho|tenho)\\s+(\\d{1,3})\\s+anos\\b", RegexOption.IGNORE_CASE)
+            .find(t)?.let { m ->
+                val age = m.groupValues.getOrNull(2).orEmpty()
+                age.toIntOrNull()?.let { a ->
+                    if (a in 3..120) out.add("O usuário tem $a anos.")
+                }
+            }
 
-        if (Regex("\\bmeu\\s+nome\\s+(é|eh)\\s+([\\p{L}][\\p{L}\\s.\\'-]{1,40})", RegexOption.IGNORE_CASE)
-                .find(t)?.let { m ->
-                    val name = m.groupValues.getOrNull(2).orEmpty().trim()
-                    if (name.isNotBlank()) out.add("O usuário se chama $name.")
-                } != null) {}
+        Regex("\\bmeu\\s+nome\\s+(\u00e9|eh)\\s+([\\p{L}][\\p{L}\\s.\\'-]{1,40})", RegexOption.IGNORE_CASE)
+            .find(t)?.let { m ->
+                val name = m.groupValues.getOrNull(2).orEmpty().trim()
+                if (name.isNotBlank()) out.add("O usu\u00e1rio se chama $name.")
+            }
 
-        if (Regex("\\b(eu\\s+)?moro\\s+em\\s+([^\\n,.]{2,60})", RegexOption.IGNORE_CASE)
-                .find(t)?.let { m ->
-                    val loc = m.groupValues.getOrNull(2).orEmpty().trim()
-                    if (loc.isNotBlank()) out.add("O usuário mora em $loc.")
-                } != null) {}
+        Regex("\\b(eu\\s+)?moro\\s+em\\s+([^\\n,.]{2,60})", RegexOption.IGNORE_CASE)
+            .find(t)?.let { m ->
+                val loc = m.groupValues.getOrNull(2).orEmpty().trim()
+                if (loc.isNotBlank()) out.add("O usu\u00e1rio mora em $loc.")
+            }
 
-        return out
-            .map { cleanMemoryText(it) }
-            .filter { it.isNotBlank() }
-            .distinctBy { it.lowercase() }
+        return out.map { cleanMemoryText(it) }.filter { it.isNotBlank() }.distinctBy { it.lowercase() }
     }
 
     private fun stripMemoryCommands(text: String): Pair<String, List<String>> {
         if (!text.contains("MEMORY_SAVE")) return text to emptyList()
-
         val mems = mutableListOf<String>()
 
         memoryInlineRegex.findAll(text).forEach { m ->
@@ -103,11 +91,7 @@ class ChatViewModel(
 
         var cleaned = text.replace(memoryInlineRegex, "")
         cleaned = cleaned.lines().filter { memorySaveRegex.matchEntire(it) == null }.joinToString("\n")
-
-        cleaned = cleaned
-            .replace(Regex("[ \t]+\n"), "\n")
-            .replace(Regex("\n{3,}"), "\n\n")
-            .trimEnd()
+        cleaned = cleaned.replace(Regex("[ \t]+\n"), "\n").replace(Regex("\n{3,}"), "\n\n").trimEnd()
 
         return cleaned to mems.distinctBy { it.lowercase() }
     }
@@ -133,34 +117,19 @@ class ChatViewModel(
         }
     }
 
-    fun setInput(v: String) {
-        _state.value = _state.value.copy(input = v)
-    }
-
-    fun openHistory() {
-        _state.value = _state.value.copy(historyOpen = true)
-    }
-
-    fun closeHistory() {
-        _state.value = _state.value.copy(historyOpen = false)
-    }
+    fun setInput(v: String) { _state.value = _state.value.copy(input = v) }
+    fun openHistory() { _state.value = _state.value.copy(historyOpen = true) }
+    fun closeHistory() { _state.value = _state.value.copy(historyOpen = false) }
 
     fun newChat() {
         stop()
         val id = UUID.randomUUID().toString()
         _state.value = _state.value.copy(
-            currentChatId = id,
-            messages = listOf(greetingMessage()),
-            input = "",
-            sending = false,
-            historyOpen = false,
-            lastTokenUsage = null,
-            lastModelName = null
+            currentChatId = id, messages = listOf(greetingMessage()),
+            input = "", sending = false, historyOpen = false,
+            lastTokenUsage = null, lastModelName = null
         )
-        viewModelScope.launch {
-            store.upsertChat(toStoredChat(_state.value))
-            refreshChats()
-        }
+        viewModelScope.launch { store.upsertChat(toStoredChat(_state.value)); refreshChats() }
     }
 
     fun loadChat(id: String) {
@@ -170,9 +139,7 @@ class ChatViewModel(
         _state.value = _state.value.copy(
             currentChatId = chat.id,
             messages = if (ui.isNotEmpty()) ui else listOf(greetingMessage()),
-            historyOpen = false,
-            input = "",
-            sending = false
+            historyOpen = false, input = "", sending = false
         )
     }
 
@@ -181,9 +148,7 @@ class ChatViewModel(
             store.deleteChat(id)
             val isCurrent = id == _state.value.currentChatId
             refreshChats()
-            if (isCurrent) {
-                newChat()
-            }
+            if (isCurrent) newChat()
         }
     }
 
@@ -193,14 +158,9 @@ class ChatViewModel(
             store.clearAll()
             val id = UUID.randomUUID().toString()
             _state.value = _state.value.copy(
-                chats = emptyList(),
-                currentChatId = id,
-                messages = listOf(greetingMessage()),
-                input = "",
-                sending = false,
-                historyOpen = false,
-                lastTokenUsage = null,
-                lastModelName = null
+                chats = emptyList(), currentChatId = id, messages = listOf(greetingMessage()),
+                input = "", sending = false, historyOpen = false,
+                lastTokenUsage = null, lastModelName = null
             )
             store.upsertChat(toStoredChat(_state.value))
             refreshChats()
@@ -221,22 +181,14 @@ class ChatViewModel(
         }
     }
 
-    fun showSnackbar(message: String) {
-        _state.value = _state.value.copy(snackbar = SnackbarEvent(message))
-    }
-
-    fun consumeSnackbar() {
-        if (_state.value.snackbar != null) {
-            _state.value = _state.value.copy(snackbar = null)
-        }
-    }
+    fun showSnackbar(message: String) { _state.value = _state.value.copy(snackbar = SnackbarEvent(message)) }
+    fun consumeSnackbar() { if (_state.value.snackbar != null) _state.value = _state.value.copy(snackbar = null) }
 
     fun send() {
         val text = _state.value.input.trim()
         if (text.isEmpty() || _state.value.sending) return
 
         lastUserMessageForRetry = text
-
         val currentMessages = _state.value.messages
 
         val baseMessages = buildList {
@@ -245,22 +197,14 @@ class ChatViewModel(
             add(UiMessage("user", text))
         }
 
-        val visible = currentMessages +
-            UiMessage("user", text) +
-            UiMessage("assistant", "", isThinking = true)
+        val visible = currentMessages + UiMessage("user", text) + UiMessage("assistant", "", isThinking = true)
 
-        _state.value = _state.value.copy(
-            messages = visible,
-            input = "",
-            sending = true
-        )
+        _state.value = _state.value.copy(messages = visible, input = "", sending = true)
 
         if (memoriesEnabled && memoryAutoSaveEnabled && memoryStore != null) {
             val extractedFromUser = extractPersonalMemoriesFromUser(text)
             if (extractedFromUser.isNotEmpty()) {
-                viewModelScope.launch {
-                    extractedFromUser.forEach { mem -> runCatching { memoryStore.addMemory(mem) } }
-                }
+                viewModelScope.launch { extractedFromUser.forEach { mem -> runCatching { memoryStore.addMemory(mem) } } }
                 pendingMemorySavedNote = extractedFromUser.joinToString(" • ")
             }
         }
@@ -271,60 +215,34 @@ class ChatViewModel(
         runningJob = viewModelScope.launch {
             try {
                 val response = client.complete(baseMessages.map { UiMessage(it.role, it.content) })
-
                 val (cleaned, extracted) = stripMemoryCommands(response.content)
                 var savedNote: String? = null
                 if (extracted.isNotEmpty() && memoriesEnabled && memoryAutoSaveEnabled && memoryStore != null) {
-                    extracted.forEach { mem ->
-                        runCatching { memoryStore.addMemory(mem) }
-                    }
+                    extracted.forEach { mem -> runCatching { memoryStore.addMemory(mem) } }
                     savedNote = extracted.joinToString(" • ")
                 }
 
                 val pending = pendingMemorySavedNote
                 pendingMemorySavedNote = null
                 val combinedNote = listOfNotNull(savedNote, pending)
-                    .flatMap { it.split(" • ").map { s -> s.trim() }.filter { s -> s.isNotBlank() } }
-                    .distinctBy { it.lowercase() }
-                    .takeIf { it.isNotEmpty() }
-                    ?.joinToString(" • ")
+                    .flatMap { it.split(" • ").map(String::trim).filter(String::isNotBlank) }
+                    .distinctBy { it.lowercase() }.takeIf { it.isNotEmpty() }?.joinToString(" • ")
 
-                replaceAssistantAt(chatId, assistantIndex, cleaned,
-                    memorySaved = combinedNote,
-                    tokenUsage = response.usage,
-                    modelName = response.modelName
-                )
+                replaceAssistantAt(chatId, assistantIndex, cleaned, memorySaved = combinedNote, tokenUsage = response.usage, modelName = response.modelName)
+                _state.value = _state.value.copy(sending = false, lastTokenUsage = response.usage, lastModelName = response.modelName)
 
-                _state.value = _state.value.copy(
-                    sending = false,
-                    lastTokenUsage = response.usage,
-                    lastModelName = response.modelName
-                )
-
-                if (!combinedNote.isNullOrBlank()) {
-                    scheduleClearMemorySaved(chatId, assistantIndex, combinedNote)
-                }
-
+                if (!combinedNote.isNullOrBlank()) scheduleClearMemorySaved(chatId, assistantIndex, combinedNote)
                 persist()
-            } catch (e: CancellationException) {
-                throw e
+            } catch (e: CancellationException) { throw e
             } catch (e: Exception) {
                 val msg = e.message ?: strings.genericError
-                replaceAssistantAt(chatId, assistantIndex,
-                    String.format(Locale.getDefault(), strings.assistantErrorTemplate, msg)
-                )
-                _state.value = _state.value.copy(
-                    sending = false,
-                    snackbar = SnackbarEvent(
-                        message = String.format(Locale.getDefault(), strings.snackFailedTemplate, msg),
-                        actionLabel = strings.retryActionLabel,
-                        onAction = { retry() }
-                    )
-                )
+                replaceAssistantAt(chatId, assistantIndex, String.format(Locale.getDefault(), strings.assistantErrorTemplate, msg))
+                _state.value = _state.value.copy(sending = false, snackbar = SnackbarEvent(
+                    message = String.format(Locale.getDefault(), strings.snackFailedTemplate, msg),
+                    actionLabel = strings.retryActionLabel, onAction = { retry() }
+                ))
                 persist()
-            } finally {
-                runningJob = null
-            }
+            } finally { runningJob = null }
         }
     }
 
@@ -351,59 +269,28 @@ class ChatViewModel(
             val msgs = _state.value.messages.toMutableList()
             if (index < 0 || index >= msgs.size) return@launch
             val msg = msgs[index]
-            if (msg.role != "assistant") return@launch
-            if (msg.memorySaved != note) return@launch
+            if (msg.role != "assistant" || msg.memorySaved != note) return@launch
             msgs[index] = msg.copy(memorySaved = null)
             _state.value = _state.value.copy(messages = msgs)
             persist()
         }
     }
 
-    private fun replaceAssistantAt(
-        chatId: String,
-        index: Int,
-        content: String,
-        memorySaved: String? = null,
-        tokenUsage: TokenUsage? = null,
-        modelName: String? = null,
-        isThinking: Boolean = false
-    ) {
+    private fun replaceAssistantAt(chatId: String, index: Int, content: String, memorySaved: String? = null, tokenUsage: TokenUsage? = null, modelName: String? = null, isThinking: Boolean = false) {
         if (_state.value.currentChatId != chatId) return
-
         val updated = _state.value.messages.toMutableList()
         if (index < 0 || index >= updated.size) return
         if (updated[index].role != "assistant") return
-
-        updated[index] = UiMessage(
-            role = "assistant",
-            content = content,
-            isThinking = isThinking,
-            memorySaved = memorySaved,
-            tokenUsage = tokenUsage,
-            modelName = modelName
-        )
+        updated[index] = UiMessage(role = "assistant", content = content, isThinking = isThinking, memorySaved = memorySaved, tokenUsage = tokenUsage, modelName = modelName)
         _state.value = _state.value.copy(messages = updated)
     }
 
-    private suspend fun persist() {
-        store.upsertChat(toStoredChat(_state.value))
-        refreshChats()
-    }
-
-    private suspend fun refreshChats() {
-        val chats = store.loadChats().sortedByDescending { it.createdAt }
-        _state.value = _state.value.copy(chats = chats)
-    }
+    private suspend fun persist() { store.upsertChat(toStoredChat(_state.value)); refreshChats() }
+    private suspend fun refreshChats() { _state.value = _state.value.copy(chats = store.loadChats().sortedByDescending { it.createdAt }) }
 
     private fun toStoredChat(state: ChatUiState): StoredChat {
         val now = System.currentTimeMillis()
-        val msgs = state.messages.map {
-            StoredMessage(
-                role = it.role,
-                content = it.content,
-                ts = now
-            )
-        }
+        val msgs = state.messages.map { StoredMessage(role = it.role, content = it.content, ts = now) }
         val created = state.chats.firstOrNull { it.id == state.currentChatId }?.createdAt ?: now
         return StoredChat(id = state.currentChatId, createdAt = created, messages = msgs)
     }
@@ -412,9 +299,7 @@ class ChatViewModel(
         fun factory(store: ChatStore, memoryStore: MemoryStore?, strings: ChatStrings): ViewModelProvider.Factory =
             object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
-                override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    return ChatViewModel(store, memoryStore, strings) as T
-                }
+                override fun <T : ViewModel> create(modelClass: Class<T>): T = ChatViewModel(store, memoryStore, strings) as T
             }
     }
 }
