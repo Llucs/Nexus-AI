@@ -17,6 +17,8 @@ class UserPrefs(private val context: Context) {
     private val keyMemoriesEnabled = booleanPreferencesKey("memories_enabled")
     private val keyMemoryAutoSave = booleanPreferencesKey("memories_auto_save")
 
+    private val keyAiTerminalEnabled = booleanPreferencesKey("ai_terminal_enabled")
+
     suspend fun getUserName(): String? {
         val prefs = context.userDataStore.data.first()
         return prefs[keyUserName]?.trim()?.ifBlank { null }
@@ -54,5 +56,14 @@ class UserPrefs(private val context: Context) {
 
     suspend fun setMemoryAutoSaveEnabled(enabled: Boolean) {
         context.userDataStore.edit { it[keyMemoryAutoSave] = enabled }
+    }
+
+    suspend fun getAiTerminalEnabled(defaultValue: Boolean = false): Boolean {
+        val prefs = context.userDataStore.data.first()
+        return prefs[keyAiTerminalEnabled] ?: defaultValue
+    }
+
+    suspend fun setAiTerminalEnabled(enabled: Boolean) {
+        context.userDataStore.edit { it[keyAiTerminalEnabled] = enabled }
     }
 }

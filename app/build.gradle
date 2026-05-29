@@ -18,14 +18,31 @@ android {
         targetSdk 34
         versionCode 1
         versionName '1.0'
+
+        baselineProfile {
+            enabled true
+        }
     }
 
     buildFeatures {
         compose true
+        buildConfig true
     }
 
     composeOptions {
         kotlinCompilerExtensionVersion '1.5.14'
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            minifyEnabled false
+            applicationIdSuffix '.debug'
+        }
     }
 
     kotlin {
@@ -34,10 +51,23 @@ android {
 
     kotlinOptions {
         allWarningsAsErrors = false
-
         jvmTarget = '17'
+        freeCompilerArgs += [
+            "-opt-in=kotlin.RequiresOptIn",
+            "-Xcontext-receivers"
+        ]
+    }
+
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
     }
 }
+
+dependencies {
+    // Compose BOM 
+    implementation platform('androidx.compose:compose-bom:2024.06.00')
 
 dependencies {
     // Compose BOM 

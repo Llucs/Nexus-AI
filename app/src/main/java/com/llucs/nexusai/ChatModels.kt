@@ -39,7 +39,13 @@ data class ChatUiState(
     val historyOpen: Boolean = false,
     val snackbar: SnackbarEvent? = null,
     val lastTokenUsage: TokenUsage? = null,
-    val lastModelName: String? = null
+    val lastModelName: String? = null,
+    val terminalOpen: Boolean = false,
+    val terminalEnabled: Boolean = false,
+    val prootInstalling: Boolean = false,
+    val planningOpen: Boolean = false,
+    val activePlan: com.llucs.nexusai.planning.Plan? = null,
+    val generatedFilesCount: Int = 0
 )
 
 data class ChatStrings(
@@ -50,4 +56,23 @@ data class ChatStrings(
     val assistantErrorTemplate: String,
     val snackFailedTemplate: String,
     val retryActionLabel: String
+)
+
+data class AiFileRequest(
+    val action: String,
+    val filename: String,
+    val content: String,
+    val mimeType: String = "text/plain"
+)
+
+data class AiTerminalCommand(
+    val command: String,
+    val timeoutMs: Long = 30000,
+    val useProot: Boolean = false
+)
+
+data class AiPlanRequest(
+    val title: String,
+    val goal: String,
+    val tasks: List<String> = emptyList()
 )

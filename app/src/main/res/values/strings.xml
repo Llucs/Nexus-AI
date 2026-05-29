@@ -85,5 +85,33 @@
     <string name="prompt_summarize">Summarize this text:</string>
     <string name="prompt_surprise">Surprise me with something fun.</string>
     <string name="prompt_help_write">Help me write:</string>
-    
+
+    <string name="action_terminal">Terminal</string>
+    <string name="action_planning">Plans</string>
+
+    <string name="settings_terminal_title">AI Terminal</string>
+    <string name="settings_terminal_desc">Let the AI execute commands in a terminal</string>
+    <string name="settings_file_access_title">AI File Access</string>
+    <string name="settings_file_access_desc">Let the AI create and share files</string>
+
+    <string name="planning_title">Plans &amp; Tasks</string>
+    <string name="planning_create">New plan</string>
+    <string name="planning_no_active">No active plans. Tell the AI to create a step-by-step plan.</string>
+    <string name="planning_completed">%1$d/%2$d completed</string>
+    <string name="planning_create_title">New Plan</string>
+    <string name="planning_create_goal">Goal (optional)</string>
+    <string name="planning_create_confirm">Create</string>
+
+    <string name="terminal_start">Start Terminal</string>
+    <string name="terminal_stop">Stop Terminal</string>
+    <string name="terminal_clear">Clear</string>
+    <string name="terminal_stopped">Terminal stopped. Press Play to start.</string>
+    <string name="terminal_proot_install">Install Ubuntu (proot-distro)</string>
+    <string name="terminal_proot_uninstall">Uninstall Ubuntu</string>
+    <string name="terminal_proot_ready">Ubuntu proot-distro ready</string>
+
+    <string name="file_saved">File saved</string>
+    <string name="file_shared">File shared</string>
+    <string name="file_access_denied">File access is disabled in settings</string>
+
 </resources>

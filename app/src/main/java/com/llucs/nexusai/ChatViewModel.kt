@@ -7,19 +7,31 @@ import com.llucs.nexusai.data.ChatStore
 import com.llucs.nexusai.data.MemoryStore
 import com.llucs.nexusai.data.StoredChat
 import com.llucs.nexusai.data.StoredMessage
+import com.llucs.nexusai.files.FileTransfer
 import com.llucs.nexusai.net.ApiClient
+import com.llucs.nexusai.planning.Plan
+import com.llucs.nexusai.planning.PlanningStore
+import com.llucs.nexusai.planning.Task
+import com.llucs.nexusai.planning.TaskStatus
+import com.llucs.nexusai.terminal.ProotDistro
+import com.llucs.nexusai.terminal.TerminalSession
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
 import java.util.Locale
 import java.util.UUID
 
 class ChatViewModel(
     private val store: ChatStore,
     private val memoryStore: MemoryStore?,
+    private val planningStore: PlanningStore?,
+    private val fileTransfer: FileTransfer?,
+    private val terminalSession: TerminalSession?,
+    private val prootDistro: ProotDistro?,
     strings: ChatStrings
 ) : ViewModel() {
 
@@ -31,9 +43,228 @@ class ChatViewModel(
     private val memorySaveRegex = Regex("(?m)^[\\t ]*<<\\s*MEMORY_SAVE\\s*:\\s*(.+?)\\s*>>\\s*$")
     private val memoryInlineRegex = Regex("<<\\s*MEMORY_SAVE\\s*:\\s*(.+?)\\s*>>")
 
+    private var aiTerminalEnabled: Boolean = false
+    private var aiFileAccessEnabled: Boolean = false
+    private var activePlan: Plan? = null
+    private val planParseRegex = Regex(
+        "<<\\s*PLAN\\s*:\\s*title=(.+?);goal=(.*?);tasks=(.+?)\\s*>>",
+        RegexOption.DOT_MATCHES_ALL
+    )
+    private val taskChecklistLine = Regex("^[-*]\\s*\\[([ xX])\\]\\s*(.+)")
+    private val fileSendRequest = Regex(
+        "<<\\s*FILE_SEND\\s*:\\s*name=(.+?);content=(.*?)\\s*>>",
+        RegexOption.DOT_MATCHES_ALL
+    )
+    private val terminalExecRequest = Regex(
+        "<<\\s*TERMINAL_EXEC\\s*:\\s*cmd=(.+?)(?:;timeout=(\\d+))?(?:;proot=(true|false))?\\s*>>",
+        RegexOption.DOT_MATCHES_ALL
+    )
+    private val taskDoneRequest = Regex("<<\\s*TASK_DONE\\s*:\\s*(.+?)\\s*>>")
+    private val planUpdateRegex = Regex(
+        "<<\\s*PLAN_UPDATE\\s*:\\s*title=(.+?);goal=(.*?);tasks=(.+?)\\s*>>",
+        RegexOption.DOT_MATCHES_ALL
+    )
+
     fun updateMemorySettings(memoriesEnabled: Boolean, autoSaveEnabled: Boolean) {
         this.memoriesEnabled = memoriesEnabled
         this.memoryAutoSaveEnabled = autoSaveEnabled
+    }
+
+    fun updateTerminalSettings(enabled: Boolean) {
+        aiTerminalEnabled = enabled
+        _state.value = _state.value.copy(terminalEnabled = enabled)
+    }
+
+    fun updateFileAccessSettings(enabled: Boolean) {
+        aiFileAccessEnabled = enabled
+    }
+
+    fun toggleTerminal() {
+        _state.value = _state.value.copy(terminalOpen = !_state.value.terminalOpen)
+    }
+
+    fun togglePlanning() {
+        _state.value = _state.value.copy(planningOpen = !_state.value.planningOpen)
+    }
+
+    fun setProotInstalling(installing: Boolean) {
+        _state.value = _state.value.copy(prootInstalling = installing)
+    }
+
+    suspend fun executeAiCommand(command: String, useProot: Boolean = false): String {
+        if (!aiTerminalEnabled) return "Terminal access disabled"
+        if (terminalSession == null) return "Terminal not available"
+        if (!terminalSession.isRunning) {
+            val started = terminalSession.start()
+            if (!started) return "Failed to start terminal"
+        }
+        return if (useProot && prootDistro != null) {
+            prootDistro.executeCommand(command)
+        } else {
+            terminalSession.executeCommand(command)
+        }
+    }
+
+    fun loadActivePlan() {
+        viewModelScope.launch {
+            val plan = planningStore?.getActivePlan()
+            activePlan = plan
+            _state.value = _state.value.copy(activePlan = plan)
+        }
+    }
+
+    fun refreshPlans() {
+        viewModelScope.launch {
+            val plan = planningStore?.getActivePlan()
+            activePlan = plan
+            _state.value = _state.value.copy(activePlan = plan)
+        }
+    }
+
+    fun toggleTask(planId: String, taskId: String, newStatus: TaskStatus) {
+        viewModelScope.launch {
+            planningStore?.updateTaskStatus(planId, taskId, newStatus)
+            loadActivePlan()
+        }
+    }
+
+    fun deletePlan(planId: String) {
+        viewModelScope.launch {
+            planningStore?.deletePlan(planId)
+            loadActivePlan()
+        }
+    }
+
+    fun deleteTask(planId: String, taskId: String) {
+        viewModelScope.launch {
+            planningStore?.let { store ->
+                val plans = store.loadPlans()
+                val plan = plans.firstOrNull { it.id == planId } ?: return@launch
+                val filteredTasks = plan.tasks.filter { it.id != taskId }
+                store.upsertPlan(plan.copy(tasks = filteredTasks))
+                loadActivePlan()
+            }
+        }
+    }
+
+    fun createPlan(title: String, goal: String) {
+        viewModelScope.launch {
+            val plan = Plan(title = title, goal = goal)
+            planningStore?.upsertPlan(plan)
+            loadActivePlan()
+        }
+    }
+
+    private suspend fun handleAiCommands(content: String): String {
+        if (!aiFileAccessEnabled && !aiTerminalEnabled && planningStore == null) return content
+
+        val replacements = mutableListOf<Pair<Int, Pair<Int, String>>>()
+
+        if (aiFileAccessEnabled && fileTransfer != null) {
+            for (m in fileSendRequest.findAll(content)) {
+                val name = m.groupValues[1].trim()
+                val fileContent = m.groupValues[2].trim()
+                val result = try {
+                    val file = fileTransfer.saveGeneratedFile(name, fileContent)
+                    _state.value = _state.value.copy(generatedFilesCount = _state.value.generatedFilesCount + 1)
+                    "\nFile saved: ${file.name}"
+                } catch (e: Exception) {
+                    "\nFile save error: ${e.message}"
+                }
+                replacements.add(m.range.first to (m.range.last - m.range.first + 1) to result)
+            }
+
+            val shareRegex = Regex("<<\\s*FILE_SHARE\\s*:\\s*name=(.+?)\\s*>>")
+            for (m in shareRegex.findAll(content)) {
+                val name = m.groupValues[1].trim()
+                val files = fileTransfer.listGeneratedFiles()
+                val file = files.firstOrNull { it.name == name }
+                val result = if (file != null) {
+                    fileTransfer.shareFile(file)
+                    "\nFile shared: $name"
+                } else {
+                    "\nFile not found: $name"
+                }
+                replacements.add(m.range.first to (m.range.last - m.range.first + 1) to result)
+            }
+        }
+
+        if (aiTerminalEnabled && terminalSession != null) {
+            val terminalCache = mutableMapOf<String, String>()
+            for (m in terminalExecRequest.findAll(content)) {
+                val cmd = m.groupValues[1].trim().replace("\\n", "\n")
+                val timeout = m.groupValues[2].toLongOrNull() ?: 30000
+                val useProot = m.groupValues[3].toBoolean()
+                val key = "$cmd|$timeout|$useProot"
+                val result = terminalCache.getOrPut(key) {
+                    try {
+                        if (useProot && prootDistro != null) {
+                            prootDistro.executeCommand(cmd)
+                        } else {
+                            terminalSession.executeCommand(cmd, timeout)
+                        }
+                    } catch (e: Exception) {
+                        "Command error: ${e.message}"
+                    }
+                }
+                replacements.add(m.range.first to (m.range.last - m.range.first + 1) to "\nCommand output:\n$result")
+            }
+        }
+
+        if (planningStore != null) {
+            for (m in planParseRegex.findAll(content)) {
+                val title = m.groupValues[1].trim()
+                val goal = m.groupValues[2].trim()
+                val tasksRaw = m.groupValues[3].trim()
+                val taskList = tasksRaw.split("|").map { it.trim() }.filter { it.isNotBlank() }
+                val tasks = taskList.map { Task(description = it) }
+                val plan = Plan(title = title, goal = goal, tasks = tasks)
+                planningStore.upsertPlan(plan)
+                replacements.add(m.range.first to (m.range.last - m.range.first + 1) to "\nPlan created: $title")
+            }
+
+            for (m in planUpdateRegex.findAll(content)) {
+                val title = m.groupValues[1].trim()
+                val goal = m.groupValues[2].trim()
+                val tasksRaw = m.groupValues[3].trim()
+                val taskList = tasksRaw.split("|").map { it.trim() }.filter { it.isNotBlank() }
+                val existing = planningStore.getActivePlan()
+                val tasks = taskList.map { Task(description = it) }
+                val plan = (existing?.copy(title = title, goal = goal, tasks = tasks, updatedAt = System.currentTimeMillis())
+                    ?: Plan(title = title, goal = goal, tasks = tasks))
+                planningStore.upsertPlan(plan)
+                replacements.add(m.range.first to (m.range.last - m.range.first + 1) to "\nPlan updated: $title")
+            }
+
+            for (m in taskDoneRequest.findAll(content)) {
+                val desc = m.groupValues[1].trim()
+                val existing = planningStore.getActivePlan()
+                if (existing != null) {
+                    val task = existing.tasks.firstOrNull {
+                        it.description.contains(desc, ignoreCase = true)
+                    }
+                    if (task != null) {
+                        planningStore.updateTaskStatus(existing.id, task.id, TaskStatus.COMPLETED)
+                        replacements.add(m.range.first to (m.range.last - m.range.first + 1) to "\nTask completed: ${task.description}")
+                    } else {
+                        replacements.add(m.range.first to (m.range.last - m.range.first + 1) to "\nTask not found: $desc")
+                    }
+                }
+            }
+
+            loadActivePlan()
+        }
+
+        if (replacements.isEmpty()) return content
+
+        replacements.sortByDescending { it.first.first }
+        val sb = StringBuilder(content)
+        for (entry in replacements) {
+            val (range, replacement) = entry
+            val (start, len) = range
+            sb.replace(start, start + len, replacement)
+        }
+        return sb.toString()
     }
 
     private fun cleanMemoryText(raw: String): String {
@@ -215,7 +446,8 @@ class ChatViewModel(
         runningJob = viewModelScope.launch {
             try {
                 val response = client.complete(baseMessages.map { UiMessage(it.role, it.content) })
-                val (cleaned, extracted) = stripMemoryCommands(response.content)
+                val cmdProcessed = handleAiCommands(response.content)
+                val (cleaned, extracted) = stripMemoryCommands(cmdProcessed)
                 var savedNote: String? = null
                 if (extracted.isNotEmpty() && memoriesEnabled && memoryAutoSaveEnabled && memoryStore != null) {
                     extracted.forEach { mem -> runCatching { memoryStore.addMemory(mem) } }
@@ -296,10 +528,19 @@ class ChatViewModel(
     }
 
     companion object {
-        fun factory(store: ChatStore, memoryStore: MemoryStore?, strings: ChatStrings): ViewModelProvider.Factory =
+        fun factory(
+            store: ChatStore,
+            memoryStore: MemoryStore?,
+            planningStore: PlanningStore?,
+            fileTransfer: FileTransfer?,
+            terminalSession: TerminalSession?,
+            prootDistro: ProotDistro?,
+            strings: ChatStrings
+        ): ViewModelProvider.Factory =
             object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
-                override fun <T : ViewModel> create(modelClass: Class<T>): T = ChatViewModel(store, memoryStore, strings) as T
+                override fun <T : ViewModel> create(modelClass: Class<T>): T =
+                    ChatViewModel(store, memoryStore, planningStore, fileTransfer, terminalSession, prootDistro, strings) as T
             }
     }
 }

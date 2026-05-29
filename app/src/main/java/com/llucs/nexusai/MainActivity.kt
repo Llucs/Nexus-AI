@@ -24,6 +24,10 @@ import androidx.core.os.LocaleListCompat
 import com.llucs.nexusai.data.ChatStore
 import com.llucs.nexusai.data.MemoryStore
 import com.llucs.nexusai.data.UserPrefs
+import com.llucs.nexusai.files.FileTransfer
+import com.llucs.nexusai.planning.PlanningStore
+import com.llucs.nexusai.terminal.ProotDistro
+import com.llucs.nexusai.terminal.TerminalSession
 import com.llucs.nexusai.ui.NexusTheme
 import com.llucs.nexusai.ui.chat.ChatScreen
 import kotlinx.coroutines.launch
@@ -81,6 +85,10 @@ class MainActivity : ComponentActivity() {
                 val chatStore = remember { ChatStore(context.applicationContext) }
                 val prefs = remember { UserPrefs(context.applicationContext) }
                 val memoryStore = remember { MemoryStore(context.applicationContext) }
+                val planningStore = remember { PlanningStore(context.applicationContext) }
+                val fileTransfer = remember { FileTransfer(context.applicationContext) }
+                val terminalSession = remember { TerminalSession() }
+                val prootDistro = remember { ProotDistro(context.applicationContext) }
 
                 var prefsLoaded by remember { mutableStateOf(false) }
                 var userName by rememberSaveable { mutableStateOf("") }
@@ -107,6 +115,8 @@ class MainActivity : ComponentActivity() {
                 Surface(color = MaterialTheme.colorScheme.background) {
                     ChatScreen(
                         store = chatStore, prefs = prefs, memoryStore = memoryStore,
+                        planningStore = planningStore, fileTransfer = fileTransfer,
+                        terminalSession = terminalSession, prootDistro = prootDistro,
                         userName = userName, languageCode = lang,
                         onEditName = { nameInput = userName; showNameDialog = true },
                         onChangeLanguage = { newCode ->

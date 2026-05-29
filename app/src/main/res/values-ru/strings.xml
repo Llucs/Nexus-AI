@@ -85,5 +85,33 @@
     <string name="prompt_summarize">Сократи этот текст:</string>
     <string name="prompt_surprise">Удиви меня чем-нибудь.</string>
     <string name="prompt_help_write">Помоги написать:</string>
-    
+
+    <string name="action_terminal">Терминал</string>
+    <string name="action_planning">Планы</string>
+
+    <string name="settings_terminal_title">Терминал ИИ</string>
+    <string name="settings_terminal_desc">Разрешить ИИ выполнять команды в терминале</string>
+    <string name="settings_file_access_title">Доступ к файлам</string>
+    <string name="settings_file_access_desc">Разрешить ИИ создавать и отправлять файлы</string>
+
+    <string name="planning_title">Планы и задачи</string>
+    <string name="planning_create">Новый план</string>
+    <string name="planning_no_active">Нет активных планов. Попросите ИИ создать пошаговый план.</string>
+    <string name="planning_completed">%1$d/%2$d выполнено</string>
+    <string name="planning_create_title">Новый план</string>
+    <string name="planning_create_goal">Цель (опционально)</string>
+    <string name="planning_create_confirm">Создать</string>
+
+    <string name="terminal_start">Запустить терминал</string>
+    <string name="terminal_stop">Остановить терминал</string>
+    <string name="terminal_clear">Очистить</string>
+    <string name="terminal_stopped">Терминал остановлен. Нажмите Play для запуска.</string>
+    <string name="terminal_proot_install">Установить Ubuntu (proot-distro)</string>
+    <string name="terminal_proot_uninstall">Удалить Ubuntu</string>
+    <string name="terminal_proot_ready">Ubuntu proot-distro готов</string>
+
+    <string name="file_saved">Файл сохранён</string>
+    <string name="file_shared">Файл отправлен</string>
+    <string name="file_access_denied">Доступ к файлам отключён в настройках</string>
+
 </resources>

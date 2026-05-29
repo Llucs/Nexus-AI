@@ -39,6 +39,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -50,7 +51,9 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.History
@@ -128,13 +131,25 @@ import com.llucs.nexusai.data.ChatStore
 import com.llucs.nexusai.data.MemoryStore
 import com.llucs.nexusai.data.StoredChat
 import com.llucs.nexusai.data.UserPrefs
+import com.llucs.nexusai.files.FileTransfer
+import com.llucs.nexusai.planning.CreatePlanDialog
+import com.llucs.nexusai.planning.Plan
+import com.llucs.nexusai.planning.PlanCard
+import com.llucs.nexusai.planning.PlanningStore
+import com.llucs.nexusai.planning.PlanningPanel
+import com.llucs.nexusai.planning.TaskStatus
 import com.llucs.nexusai.splitMarkdown
+import com.llucs.nexusai.terminal.ProotDistro
+import com.llucs.nexusai.terminal.TerminalPanel
+import com.llucs.nexusai.terminal.TerminalSession
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
     store: ChatStore, prefs: UserPrefs, memoryStore: MemoryStore,
+    planningStore: PlanningStore?, fileTransfer: FileTransfer?,
+    terminalSession: TerminalSession?, prootDistro: ProotDistro?,
     userName: String, languageCode: String,
     onEditName: () -> Unit, onChangeLanguage: (String) -> Unit,
     sourceUrl: String = "https://github.com/Llucs/Nexus-AI"
@@ -164,6 +179,11 @@ fun ChatScreen(
     var memories by remember { mutableStateOf<List<String>>(emptyList()) }
     var showMemoriesManager by rememberSaveable { mutableStateOf(false) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
+    var terminalEnabled by rememberSaveable { mutableStateOf(false) }
+    var showTerminal by rememberSaveable { mutableStateOf(false) }
+    var fileAccessEnabled by rememberSaveable { mutableStateOf(false) }
+    var showPlanning by rememberSaveable { mutableStateOf(false) }
+    var showCreatePlan by rememberSaveable { mutableStateOf(false) }
 
     val navLetter = userName.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "N"
     val trimmedName = userName.trim()
@@ -224,12 +244,28 @@ fun ChatScreen(
         else -> "Hi! I'm Nexus AI.\n\n$nameHint\n\n$appIdentity\n\n${if (memoriesBlock.isNotBlank()) memoriesBlock + "\n\n" else ""}$memorySaveRules\n\nRules:\n- Speak clearly and keep it simple.\n- Go straight to the point.\n- Don't glue words, letters, and numbers together.\n- Use well-formatted Markdown when helpful.\n- If I don't know something, I'll say so and suggest alternatives."
     }
 
-    val finalSystemPrompt = if (hasName) systemPrompt + "\n\n" + when (locale) {
+    val terminalSystemPrompt = if (terminalEnabled && hasTerminal) when (locale) {
+        "pt" -> "\n\nVoc\u00ea TEM acesso ao terminal do Android. Use <<TERMINAL_EXEC: cmd=comando;timeout=30000;proot=false>> para executar comandos. Use <<TERMINAL_EXEC: cmd=comando;proot=true>> para Ubuntu (precisa instalar)."
+        "es" -> "\n\nTIENES acceso al terminal de Android. Usa <<TERMINAL_EXEC: cmd=comando;timeout=30000;proot=false>> para ejecutar comandos. Usa <<TERMINAL_EXEC: cmd=comando;proot=true>> para Ubuntu."
+        else -> "\n\nYou HAVE access to the Android terminal. Use <<TERMINAL_EXEC: cmd=command;timeout=30000;proot=false>> to run commands. Use <<TERMINAL_EXEC: cmd=command;proot=true>> for Ubuntu."
+    } else ""
+    val fileSystemPrompt = if (fileAccessEnabled) when (locale) {
+        "pt" -> "\n\nVoc\u00ea pode criar arquivos com <<FILE_SEND: name=arquivo.txt;content=texto>>. Compartilhe com <<FILE_SHARE: name=arquivo.txt>>."
+        "es" -> "\n\nPuedes crear archivos con <<FILE_SEND: name=archivo.txt;content=texto>>. Comparte con <<FILE_SHARE: name=archivo.txt>>."
+        else -> "\n\nYou can create files with <<FILE_SEND: name=file.txt;content=text>>. Share with <<FILE_SHARE: name=file.txt>>."
+    } else ""
+    val planSystemPrompt = if (hasPlanning) when (locale) {
+        "pt" -> "\n\nCrie planos passo a passo com checklist. Use <<PLAN: title=T\u00edtulo;goal=Objetivo;tasks=Tarefa 1|Tarefa 2>>. Marque conclu\u00edda com <<TASK_DONE: descri\u00e7\u00e3o>>. Atualize com <<PLAN_UPDATE: title=...;goal=...;tasks=...>>."
+        "es" -> "\n\nCrea planes paso a paso con checklist. Usa <<PLAN: title=T\u00edtulo;goal=Objetivo;tasks=Tarea 1|Tarea 2>>. Marca completada con <<TASK_DONE: descripci\u00f3n>>."
+        else -> "\n\nCreate step-by-step plans with checklists. Use <<PLAN: title=Title;goal=Goal;tasks=Task 1|Task 2>>. Mark done with <<TASK_DONE: description>>. Update with <<PLAN_UPDATE: title=...;goal=...;tasks=...>>."
+    } else ""
+
+    val finalSystemPrompt = systemPrompt + terminalSystemPrompt + fileSystemPrompt + planSystemPrompt + if (hasName) "\n\n" + when (locale) {
         "pt" -> "Nome preferido do usu\u00e1rio: $displayName. Use o nome s\u00f3 quando for natural; n\u00e3o repita em toda resposta."
         "es" -> "Nombre preferido del usuario: $displayName. Usa el nombre solo cuando sea natural; no lo repitas en cada respuesta."
         "ru" -> "\u041f\u0440\u0435\u0434\u043f\u043e\u0447\u0442\u0438\u0442\u0435\u043b\u044c\u043d\u043e\u0435 \u0438\u043c\u044f \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044f: $displayName. \u0418\u0441\u043f\u043e\u043b\u044c\u0437\u0443\u0439 \u0438\u043c\u044f \u0442\u043e\u043b\u044c\u043a\u043e \u043a\u043e\u0433\u0434\u0430 \u044d\u0442\u043e \u0443\u043c\u0435\u0441\u0442\u043d\u043e."
         else -> "User preferred name: $displayName. Use the name only when it feels natural; don't repeat it in every reply."
-    } else systemPrompt
+    } else ""
 
     val greeting = when (locale) {
         "pt" -> if (hasName) "Oi, ${displayName}! Eu sou o Nexus AI. Pode perguntar qualquer coisa." else "Oi! Eu sou o Nexus AI. Pode perguntar qualquer coisa."
@@ -244,11 +280,16 @@ fun ChatScreen(
     val snackFailedTemplate = stringResource(R.string.snack_failed_template)
     val retryAction = stringResource(R.string.snack_retry)
 
-    val vm: ChatViewModel = viewModel(factory = ChatViewModel.factory(store = store, memoryStore = memoryStore, strings = ChatStrings(
-        systemPrompt = finalSystemPrompt, greeting = greeting, interrupted = interrupted,
-        genericError = genericError, assistantErrorTemplate = assistantErrTemplate,
-        snackFailedTemplate = snackFailedTemplate, retryActionLabel = retryAction
-    )))
+    val vm: ChatViewModel = viewModel(factory = ChatViewModel.factory(
+        store = store, memoryStore = memoryStore,
+        planningStore = planningStore, fileTransfer = fileTransfer,
+        terminalSession = terminalSession, prootDistro = prootDistro,
+        strings = ChatStrings(
+            systemPrompt = finalSystemPrompt, greeting = greeting, interrupted = interrupted,
+            genericError = genericError, assistantErrorTemplate = assistantErrTemplate,
+            snackFailedTemplate = snackFailedTemplate, retryActionLabel = retryAction
+        )
+    ))
 
     LaunchedEffect(finalSystemPrompt, greeting, interrupted, genericError, assistantErrTemplate, snackFailedTemplate, retryAction) {
         vm.updateStrings(ChatStrings(systemPrompt = finalSystemPrompt, greeting = greeting, interrupted = interrupted,
@@ -270,6 +311,8 @@ fun ChatScreen(
         runCatching { memoriesEnabled = prefs.getMemoriesEnabled(true) }
         runCatching { memoryAutoSaveEnabled = prefs.getMemoryAutoSaveEnabled(true) }
         runCatching { memories = memoryStore.loadMemories() }
+        runCatching { terminalEnabled = prefs.getAiTerminalEnabled(false) }
+        runCatching { vm.updateTerminalSettings(terminalEnabled) }
     }
 
     val copiedText = stringResource(R.string.snack_copied)
@@ -295,10 +338,27 @@ fun ChatScreen(
 
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
+    val hasTerminal = terminalSession != null
+    val hasPlanning = planningStore != null
+    var activePlanInline by remember { mutableStateOf<Plan?>(null) }
+
+    LaunchedEffect(uiState.activePlan) {
+        activePlanInline = uiState.activePlan
+    }
+
+    LaunchedEffect(showPlanning) {
+        if (planningStore != null && showPlanning) {
+            val plan = planningStore.getActivePlan()
+            activePlanInline = plan
+        }
+    }
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = { NexusTopBar(sending = uiState.sending, navLetter = navLetter, onOpenSettings = { showSettings = true }, onHistory = vm::openHistory, onNewChat = vm::newChat, onStop = vm::stop, scrollBehavior = scrollBehavior, lastTokenUsage = uiState.lastTokenUsage) },
+        topBar = { NexusTopBar(sending = uiState.sending, navLetter = navLetter, onOpenSettings = { showSettings = true }, onHistory = vm::openHistory, onNewChat = vm::newChat, onStop = vm::stop, scrollBehavior = scrollBehavior, lastTokenUsage = uiState.lastTokenUsage,
+            showTerminal = hasTerminal, onTerminal = { showTerminal = true },
+            showPlanning = hasPlanning, onPlanning = { showPlanning = true }) },
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             if (voiceMode) VoiceInputBar(state = voiceState, onToggleShowText = voiceController::toggleShowText, onCancel = { voiceMode = false }, onSendText = { t ->
@@ -310,6 +370,24 @@ fun ChatScreen(
         Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(padding)) {
             AnimatedVisibility(visible = uiState.messages.isEmpty()) { EmptySuggestions(onPick = { vm.setInput(it) }) }
             LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (activePlanInline != null && activePlanInline!!.tasks.isNotEmpty()) {
+                    item(key = "active_plan") {
+                        PlanCard(
+                            plan = activePlanInline!!,
+                            onToggleTask = { planId, taskId, newStatus ->
+                                vm.toggleTask(planId, taskId, newStatus)
+                                activePlanInline = activePlanInline?.copy(
+                                    tasks = activePlanInline!!.tasks.map { t ->
+                                        if (t.id == taskId) t.copy(status = newStatus) else t
+                                    }
+                                )
+                            },
+                            onDeletePlan = { vm.deletePlan(it); activePlanInline = null },
+                            onDeleteTask = { planId, taskId -> vm.deleteTask(planId, taskId) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
                 itemsIndexed(uiState.messages, key = { index, msg -> "${uiState.currentChatId}_${index}_${msg.role}" }) { index, msg ->
                     val prevRole = uiState.messages.getOrNull(index - 1)?.role
                     MessageBubble(userLetter = navLetter, userName = displayName, message = msg, showMeta = prevRole != msg.role,
@@ -329,8 +407,11 @@ fun ChatScreen(
     }
 
     if (showSettings) SettingsBottomSheet(userName = userName, languageCode = locale, memoriesEnabled = memoriesEnabled, memoryAutoSaveEnabled = memoryAutoSaveEnabled, memoriesCount = memories.size, lastTokenUsage = uiState.lastTokenUsage, lastModelName = uiState.lastModelName,
+        terminalEnabled = terminalEnabled, fileAccessEnabled = fileAccessEnabled,
         onToggleMemoriesEnabled = { memoriesEnabled = it; uiScope.launch { prefs.setMemoriesEnabled(it) } },
         onToggleMemoryAutoSave = { memoryAutoSaveEnabled = it; uiScope.launch { prefs.setMemoryAutoSaveEnabled(it) } },
+        onToggleTerminal = { terminalEnabled = it; uiScope.launch { prefs.setAiTerminalEnabled(it) }; vm.updateTerminalSettings(it) },
+        onToggleFileAccess = { fileAccessEnabled = it; vm.updateFileAccessSettings(it) },
         onOpenMemoriesManager = { showMemoriesManager = true }, onEditName = { showSettings = false; onEditName() },
         onChangeLanguage = { showSettings = false; onChangeLanguage(it) }, sourceUrl = sourceUrl, onDismiss = { showSettings = false })
 
@@ -338,11 +419,45 @@ fun ChatScreen(
         onAdd = { uiScope.launch { memoryStore.addMemory(it); memories = memoryStore.loadMemories() } },
         onDeleteAt = { uiScope.launch { memoryStore.removeAt(it); memories = memoryStore.loadMemories() } },
         onClearAll = { uiScope.launch { memoryStore.clearAll(); memories = emptyList() } }, onDismiss = { showMemoriesManager = false })
+
+    if (showTerminal) TerminalBottomSheet(
+        session = terminalSession,
+        proot = prootDistro,
+        onDismiss = { showTerminal = false }
+    )
+
+    if (showPlanning && planningStore != null) {
+        var plansList by remember { mutableStateOf<List<Plan>>(emptyList()) }
+        var currentActivePlan by remember { mutableStateOf<Plan?>(null) }
+        LaunchedEffect(showPlanning) {
+            if (showPlanning) {
+                plansList = planningStore.loadPlans()
+                currentActivePlan = planningStore.getActivePlan()
+            }
+        }
+        PlanningBottomSheet(
+            activePlan = currentActivePlan,
+            plans = plansList,
+            onToggleTask = vm::toggleTask,
+            onDeletePlan = vm::deletePlan,
+            onDeleteTask = vm::deleteTask,
+            onCreatePlan = { showCreatePlan = true },
+            onDismiss = { showPlanning = false }
+        )
+    }
+
+    if (showCreatePlan) CreatePlanDialog(
+        onDismiss = { showCreatePlan = false },
+        onCreate = { title, goal ->
+            vm.createPlan(title, goal)
+            showCreatePlan = false
+        }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun NexusTopBar(sending: Boolean, navLetter: String, onOpenSettings: () -> Unit, onHistory: () -> Unit, onNewChat: () -> Unit, onStop: () -> Unit, scrollBehavior: androidx.compose.material3.TopAppBarScrollBehavior, lastTokenUsage: TokenUsage? = null) {
+private fun NexusTopBar(sending: Boolean, navLetter: String, onOpenSettings: () -> Unit, onHistory: () -> Unit, onNewChat: () -> Unit, onStop: () -> Unit, scrollBehavior: androidx.compose.material3.TopAppBarScrollBehavior, lastTokenUsage: TokenUsage? = null, showTerminal: Boolean = false, onTerminal: (() -> Unit)? = null, showPlanning: Boolean = false, onPlanning: (() -> Unit)? = null) {
     CenterAlignedTopAppBar(modifier = Modifier.statusBarsPadding(), scrollBehavior = scrollBehavior, title = {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -354,6 +469,8 @@ private fun NexusTopBar(sending: Boolean, navLetter: String, onOpenSettings: () 
     }, navigationIcon = { Box(modifier = Modifier.padding(start = 8.dp)) { BrandDot(letter = navLetter, onClick = onOpenSettings) } },
         actions = { Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
             FilledTonalIconButton(onClick = onHistory) { Icon(Icons.Filled.History, contentDescription = stringResource(R.string.action_history)) }
+            if (showTerminal) FilledTonalIconButton(onClick = { onTerminal?.invoke() }) { Icon(Icons.Filled.Code, contentDescription = stringResource(R.string.action_terminal)) }
+            if (showPlanning) FilledTonalIconButton(onClick = { onPlanning?.invoke() }) { Icon(Icons.Filled.CheckCircle, contentDescription = stringResource(R.string.action_planning)) }
             FilledTonalIconButton(onClick = onNewChat) { Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.action_new_chat)) }
             AnimatedVisibility(visible = sending) { FilledTonalIconButton(onClick = onStop, colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer)) { Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.action_stop)) } }
             Spacer(Modifier.width(4.dp))
@@ -577,7 +694,7 @@ private fun HistoryBottomSheet(chats: List<StoredChat>, currentChatId: String, o
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SettingsBottomSheet(userName: String, languageCode: String, memoriesEnabled: Boolean, memoryAutoSaveEnabled: Boolean, memoriesCount: Int, lastTokenUsage: TokenUsage?, lastModelName: String?, onToggleMemoriesEnabled: (Boolean) -> Unit, onToggleMemoryAutoSave: (Boolean) -> Unit, onOpenMemoriesManager: () -> Unit, onEditName: () -> Unit, onChangeLanguage: (String) -> Unit, sourceUrl: String, onDismiss: () -> Unit) {
+private fun SettingsBottomSheet(userName: String, languageCode: String, memoriesEnabled: Boolean, memoryAutoSaveEnabled: Boolean, memoriesCount: Int, lastTokenUsage: TokenUsage?, lastModelName: String?, terminalEnabled: Boolean, fileAccessEnabled: Boolean, onToggleMemoriesEnabled: (Boolean) -> Unit, onToggleMemoryAutoSave: (Boolean) -> Unit, onToggleTerminal: (Boolean) -> Unit, onToggleFileAccess: (Boolean) -> Unit, onOpenMemoriesManager: () -> Unit, onEditName: () -> Unit, onChangeLanguage: (String) -> Unit, sourceUrl: String, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     LaunchedEffect(Unit) { sheetState.show() }
@@ -603,6 +720,9 @@ private fun SettingsBottomSheet(userName: String, languageCode: String, memories
             PillListItem(headline = stringResource(R.string.settings_memories_title), supporting = if (memoriesCount > 0) stringResource(R.string.memories_count_template, memoriesCount) else stringResource(R.string.memories_empty_short), trailing = { Switch(checked = memoriesEnabled, onCheckedChange = onToggleMemoriesEnabled) }, onClick = { onToggleMemoriesEnabled(!memoriesEnabled) })
             PillListItem(headline = stringResource(R.string.settings_memories_auto_save), supporting = stringResource(R.string.settings_memories_auto_save_desc), trailing = { Switch(checked = memoryAutoSaveEnabled, onCheckedChange = onToggleMemoryAutoSave, enabled = memoriesEnabled) }, onClick = { if (memoriesEnabled) onToggleMemoryAutoSave(!memoryAutoSaveEnabled) })
             PillListItem(headline = stringResource(R.string.settings_memories_manage), supporting = stringResource(R.string.settings_memories_manage_desc), onClick = { closeSettingsThen(onOpenMemoriesManager) })
+            HorizontalDivider()
+            PillListItem(headline = stringResource(R.string.settings_terminal_title), supporting = stringResource(R.string.settings_terminal_desc), trailing = { Switch(checked = terminalEnabled, onCheckedChange = { newVal -> terminalEnabled = newVal; uiScope.launch { prefs.setAiTerminalEnabled(newVal) }; vm.updateTerminalSettings(newVal) }) }, onClick = { terminalEnabled = !terminalEnabled; uiScope.launch { prefs.setAiTerminalEnabled(terminalEnabled) }; vm.updateTerminalSettings(terminalEnabled) })
+            PillListItem(headline = stringResource(R.string.settings_file_access_title), supporting = stringResource(R.string.settings_file_access_desc), trailing = { Switch(checked = fileAccessEnabled, onCheckedChange = { fileAccessEnabled = it; vm.updateFileAccessSettings(it) }) }, onClick = { fileAccessEnabled = !fileAccessEnabled; vm.updateFileAccessSettings(fileAccessEnabled) })
             if (lastTokenUsage != null || lastModelName != null) {
                 HorizontalDivider()
                 if (lastModelName != null) PillListItem(headline = "Model", supporting = lastModelName)
@@ -702,6 +822,77 @@ private fun LanguagePillOption(title: String, selected: Boolean, onClick: () -> 
             Icon(imageVector = Icons.Filled.Language, contentDescription = null, tint = fg)
             Text(text = title, style = MaterialTheme.typography.bodyLarge, color = fg, modifier = Modifier.weight(1f))
             if (selected) Icon(imageVector = Icons.Filled.Check, contentDescription = null, tint = fg)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TerminalBottomSheet(
+    session: TerminalSession?,
+    proot: ProotDistro?,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    LaunchedEffect(Unit) { sheetState.show() }
+    val scope = rememberCoroutineScope()
+    fun close() { scope.launch { runCatching { sheetState.hide() }; onDismiss() } }
+
+    ModalBottomSheet(
+        onDismissRequest = { close() },
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding().heightIn(min = 300.dp, max = 500.dp)) {
+            if (session != null) {
+                TerminalPanel(session = session, proot = proot)
+            } else {
+                Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                    Text("Terminal not available")
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PlanningBottomSheet(
+    activePlan: Plan?,
+    plans: List<Plan>,
+    onToggleTask: (String, String, TaskStatus) -> Unit,
+    onDeletePlan: (String) -> Unit,
+    onDeleteTask: (String, String) -> Unit,
+    onCreatePlan: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    LaunchedEffect(Unit) { sheetState.show() }
+    val scope = rememberCoroutineScope()
+    fun close() { scope.launch { runCatching { sheetState.hide() }; onDismiss() } }
+
+    ModalBottomSheet(
+        onDismissRequest = { close() },
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(vertical = 12.dp)) {
+            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(text = stringResource(R.string.planning_title), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                FilledTonalIconButton(onClick = onCreatePlan) { Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.planning_create)) }
+                Spacer(Modifier.width(8.dp))
+                FilledTonalIconButton(onClick = { close() }) { Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.action_close)) }
+            }
+            Spacer(Modifier.height(12.dp))
+            PlanningPanel(
+                activePlan = activePlan,
+                plans = plans,
+                onToggleTask = onToggleTask,
+                onDeletePlan = onDeletePlan,
+                onDeleteTask = onDeleteTask,
+                onCreatePlan = onCreatePlan
+            )
         }
     }
 }
