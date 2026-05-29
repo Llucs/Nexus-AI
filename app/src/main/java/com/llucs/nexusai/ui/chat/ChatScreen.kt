@@ -185,6 +185,9 @@ fun ChatScreen(
     var showPlanning by rememberSaveable { mutableStateOf(false) }
     var showCreatePlan by rememberSaveable { mutableStateOf(false) }
 
+    val hasTerminal = terminalSession != null
+    val hasPlanning = planningStore != null
+
     val navLetter = userName.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "N"
     val trimmedName = userName.trim()
     val hasName = trimmedName.isNotEmpty()
@@ -338,8 +341,6 @@ fun ChatScreen(
 
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
-    val hasTerminal = terminalSession != null
-    val hasPlanning = planningStore != null
     var activePlanInline by remember { mutableStateOf<Plan?>(null) }
 
     LaunchedEffect(uiState.activePlan) {
@@ -721,8 +722,8 @@ private fun SettingsBottomSheet(userName: String, languageCode: String, memories
             PillListItem(headline = stringResource(R.string.settings_memories_auto_save), supporting = stringResource(R.string.settings_memories_auto_save_desc), trailing = { Switch(checked = memoryAutoSaveEnabled, onCheckedChange = onToggleMemoryAutoSave, enabled = memoriesEnabled) }, onClick = { if (memoriesEnabled) onToggleMemoryAutoSave(!memoryAutoSaveEnabled) })
             PillListItem(headline = stringResource(R.string.settings_memories_manage), supporting = stringResource(R.string.settings_memories_manage_desc), onClick = { closeSettingsThen(onOpenMemoriesManager) })
             HorizontalDivider()
-            PillListItem(headline = stringResource(R.string.settings_terminal_title), supporting = stringResource(R.string.settings_terminal_desc), trailing = { Switch(checked = terminalEnabled, onCheckedChange = { newVal -> terminalEnabled = newVal; uiScope.launch { prefs.setAiTerminalEnabled(newVal) }; vm.updateTerminalSettings(newVal) }) }, onClick = { terminalEnabled = !terminalEnabled; uiScope.launch { prefs.setAiTerminalEnabled(terminalEnabled) }; vm.updateTerminalSettings(terminalEnabled) })
-            PillListItem(headline = stringResource(R.string.settings_file_access_title), supporting = stringResource(R.string.settings_file_access_desc), trailing = { Switch(checked = fileAccessEnabled, onCheckedChange = { fileAccessEnabled = it; vm.updateFileAccessSettings(it) }) }, onClick = { fileAccessEnabled = !fileAccessEnabled; vm.updateFileAccessSettings(fileAccessEnabled) })
+            PillListItem(headline = stringResource(R.string.settings_terminal_title), supporting = stringResource(R.string.settings_terminal_desc), trailing = { Switch(checked = terminalEnabled, onCheckedChange = onToggleTerminal) }, onClick = { onToggleTerminal(!terminalEnabled) })
+            PillListItem(headline = stringResource(R.string.settings_file_access_title), supporting = stringResource(R.string.settings_file_access_desc), trailing = { Switch(checked = fileAccessEnabled, onCheckedChange = onToggleFileAccess) }, onClick = { onToggleFileAccess(!fileAccessEnabled) })
             if (lastTokenUsage != null || lastModelName != null) {
                 HorizontalDivider()
                 if (lastModelName != null) PillListItem(headline = "Model", supporting = lastModelName)

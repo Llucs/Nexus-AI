@@ -33,10 +33,10 @@ class ProotDistro(private val context: Context) {
 
     suspend fun checkStatus(): ProotStatus = withContext(Dispatchers.IO) {
         if (markerFile.exists() && rootfsDir.isDirectory && rootfsDir.list()?.isNotEmpty() == true) {
-            _state.value = ProotStatus.READY
+            _state.value = ProotState(status = ProotStatus.READY)
             ProotStatus.READY
         } else {
-            _state.value = ProotStatus.NOT_INSTALLED
+            _state.value = ProotState(status = ProotStatus.NOT_INSTALLED)
             ProotStatus.NOT_INSTALLED
         }
     }

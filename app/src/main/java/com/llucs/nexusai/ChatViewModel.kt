@@ -158,7 +158,7 @@ class ChatViewModel(
     private suspend fun handleAiCommands(content: String): String {
         if (!aiFileAccessEnabled && !aiTerminalEnabled && planningStore == null) return content
 
-        val replacements = mutableListOf<Pair<Int, Pair<Int, String>>>()
+        val replacements = mutableListOf<Pair<Pair<Int, Int>, String>>()
 
         if (aiFileAccessEnabled && fileTransfer != null) {
             for (m in fileSendRequest.findAll(content)) {
@@ -257,10 +257,9 @@ class ChatViewModel(
 
         if (replacements.isEmpty()) return content
 
-        replacements.sortByDescending { it.first.first }
+        replacements.sortByDescending { (range, _) -> range.first }
         val sb = StringBuilder(content)
-        for (entry in replacements) {
-            val (range, replacement) = entry
+        for ((range, replacement) in replacements) {
             val (start, len) = range
             sb.replace(start, start + len, replacement)
         }

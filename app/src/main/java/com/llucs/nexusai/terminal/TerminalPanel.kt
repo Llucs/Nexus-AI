@@ -34,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -50,7 +51,7 @@ fun TerminalPanel(
     proot: ProotDistro?,
     modifier: Modifier = Modifier
 ) {
-    val prootState by proot?.state?.collectAsState() ?: remember { androidx.compose.runtime.mutableStateOf(ProotState()) }
+    val prootState by if (proot != null) proot.state.collectAsState(initial = ProotState()) else remember { mutableStateOf(ProotState()) }
     val listState = rememberLazyListState()
     val scrollState = rememberScrollState()
 
