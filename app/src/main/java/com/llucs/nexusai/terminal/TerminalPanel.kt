@@ -26,8 +26,6 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -92,24 +90,6 @@ fun TerminalPanel(
             }
             IconButton(onClick = { session.clearHistory() }) {
                 Icon(Icons.Filled.Delete, "Clear", tint = terminalTextColor, modifier = Modifier.size(18.dp))
-            }
-        }
-
-        if (prootState.status == ProotStatus.INSTALLING || prootState.status == ProotStatus.DOWNLOADING) {
-            Column(modifier = Modifier.fillMaxWidth().padding(8.dp)) {
-                Text(
-                    text = prootState.currentStep,
-                    color = terminalYellow,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 11.sp
-                )
-                Spacer(Modifier.height(4.dp))
-                LinearProgressIndicator(
-                    progress = { prootState.progress },
-                    modifier = Modifier.fillMaxWidth().height(4.dp),
-                    color = terminalGreen,
-                    trackColor = terminalColor
-                )
             }
         }
 
