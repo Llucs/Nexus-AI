@@ -120,7 +120,6 @@ class TerminalSession {
         try {
             stdin?.write((command + "\n").toByteArray(Charsets.UTF_8))
             stdin?.flush()
-            _output.tryEmit(TerminalOutput("$ $command\n", "stdin"))
         } catch (e: Exception) {
             _output.tryEmit(TerminalOutput("Write error: ${e.message}", "error"))
         }
@@ -139,35 +138,19 @@ class TerminalSession {
             }
         }
         try {
-            write(command)
-            write("echo $marker")
+            write(command + "; echo " + marker)
             delay(timeoutMs)
         } catch (_: kotlinx.coroutines.CancellationException) {}
         finally { job.cancel() }
 
         val raw = sb.toString()
-        val markerIdx = raw.lastIndexOf(marker)
-        if (markerIdx < 0) return@withContext raw.trim()
-
-        val beforeMarker = raw.substring(0, markerIdx).trimEnd()
-        val echoMarkerLine = "echo " + marker
-        val markerDollarLine = "$ " + echoMarkerLine
-        val cmdDollarLine = "$ " + command.trim()
-
-        val lines = beforeMarker.split("\n")
-        val cleaned = lines
-            .filter { line ->
-                val t = line.trim()
-                t != command.trim() &&
-                t != cmdDollarLine &&
-                t != echoMarkerLine &&
-                t != markerDollarLine &&
-                t != marker
-            }
-            .joinToString("\n")
-            .trim()
-
-        cleaned
+        val idx = raw.lastIndexOf(marker)
+        if (idx < 0) return@withContext raw.trim()
+        val before = raw.substring(0, idx).trimEnd()
+        val lines = before.split("\n")
+            .map { it.trimEnd() }
+            .filter { it.isNotBlank() }
+        lines.joinToString("\n")
     }
 
     fun clearHistory() {
