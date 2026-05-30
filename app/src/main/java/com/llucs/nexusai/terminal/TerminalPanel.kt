@@ -24,8 +24,11 @@ import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -90,6 +93,27 @@ fun TerminalPanel(
             }
             IconButton(onClick = { session.clearHistory() }) {
                 Icon(Icons.Filled.Delete, "Clear", tint = terminalTextColor, modifier = Modifier.size(18.dp))
+            }
+        }
+
+        val prootNotInstalled = prootState.status == ProotStatus.NOT_INSTALLED
+        if (prootNotInstalled && proot != null) {
+            Button(
+                onClick = { terminalScope.launch { proot.ensureInstalled() } },
+                modifier = Modifier.fillMaxWidth().padding(4.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = terminalGreen)
+            ) {
+                Icon(Icons.Filled.PlayArrow, null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Install Ubuntu", fontSize = 12.sp)
+            }
+        }
+
+        if (prootState.status == ProotStatus.DOWNLOADING || prootState.status == ProotStatus.INSTALLING) {
+            Column(modifier = Modifier.fillMaxWidth().padding(8.dp)) {
+                Text(prootState.currentStep, color = terminalYellow, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                Spacer(Modifier.height(4.dp))
+                LinearProgressIndicator(progress = { prootState.progress }, modifier = Modifier.fillMaxWidth().height(4.dp), color = terminalGreen, trackColor = terminalColor)
             }
         }
 
