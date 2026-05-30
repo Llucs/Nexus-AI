@@ -133,7 +133,9 @@ class TerminalSession {
         val job = scope.launch {
             _output.collect { out ->
                 sb.append(out.text)
-                if (sb.contains(marker)) cancel()
+                if (out.text.contains(marker)) {
+                    cancel()
+                }
             }
         }
         try {
@@ -142,7 +144,30 @@ class TerminalSession {
             delay(timeoutMs)
         } catch (_: kotlinx.coroutines.CancellationException) {}
         finally { job.cancel() }
-        sb.toString()
+
+        val raw = sb.toString()
+        val markerIdx = raw.lastIndexOf(marker)
+        if (markerIdx < 0) return@withContext raw.trim()
+
+        val beforeMarker = raw.substring(0, markerIdx).trimEnd()
+        val echoMarkerLine = "echo " + marker
+        val markerDollarLine = "$ " + echoMarkerLine
+        val cmdDollarLine = "$ " + command.trim()
+
+        val lines = beforeMarker.split("\n")
+        val cleaned = lines
+            .filter { line ->
+                val t = line.trim()
+                t != command.trim() &&
+                t != cmdDollarLine &&
+                t != echoMarkerLine &&
+                t != markerDollarLine &&
+                t != marker
+            }
+            .joinToString("\n")
+            .trim()
+
+        cleaned
     }
 
     fun clearHistory() {

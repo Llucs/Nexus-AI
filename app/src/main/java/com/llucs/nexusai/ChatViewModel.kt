@@ -93,15 +93,24 @@ class ChatViewModel(
 
     suspend fun executeAiCommand(command: String, useProot: Boolean = false): String {
         if (!aiTerminalEnabled) return "Terminal access disabled"
-        if (terminalSession == null) return "Terminal not available"
-        if (!terminalSession.isRunning) {
-            val started = terminalSession.start()
+        if (terminalSession == null && !useProot) return "Terminal not available"
+        if (!useProot && !terminalSession!!.isRunning) {
+            val started = terminalSession!!.start()
             if (!started) return "Failed to start terminal"
         }
-        return if (useProot && prootDistro != null) {
-            prootDistro.executeCommand(command)
+        return if (useProot) {
+            if (prootDistro == null) {
+                "ERROR: Ubuntu (proot) is not available in this app build"
+            } else {
+                val status = prootDistro.checkStatus()
+                if (status != ProotStatus.READY) {
+                    "ERROR: Ubuntu (proot) is not installed. Status: $status. The user needs to install it via the terminal panel (click the terminal icon and press Install Ubuntu) before running Ubuntu commands."
+                } else {
+                    prootDistro.executeCommand(command)
+                }
+            }
         } else {
-            terminalSession.executeCommand(command)
+            terminalSession!!.executeCommand(command)
         }
     }
 
@@ -155,6 +164,20 @@ class ChatViewModel(
         }
     }
 
+    private fun containsSimulatedCommandExecution(text: String): Boolean {
+        if (!aiTerminalEnabled) return false
+        if (terminalExecRequest.containsMatchIn(text)) return false
+        val patterns = listOf(
+            Regex("(?i)(run(ning)?\\s+command|execute?\\s+command|ran\\s+[`'\"][\\w/.-]+)"),
+            Regex("(?i)(the\\s+output\\s+(was|is|showed|returned))"),
+            Regex("(?i)(i\\s+(ran|executed|ran\\s+the\\s+following|installed\\s+using\\s+terminal))"),
+            Regex("(?i)(command\\s+output\\s*:?\\s*[\"'`]?\\w)"),
+            Regex("(?ms)```(?:bash|sh|shell)\\s+.*?```"),
+        )
+        val cleaned = text.replace(terminalExecRequest, "")
+        return patterns.any { it.containsMatchIn(cleaned) }
+    }
+
     private suspend fun handleAiCommands(content: String): String {
         if (!aiFileAccessEnabled && !aiTerminalEnabled && planningStore == null) return content
 
@@ -198,8 +221,17 @@ class ChatViewModel(
                 val key = "$cmd|$timeout|$useProot"
                 val result = terminalCache.getOrPut(key) {
                     try {
-                        if (useProot && prootDistro != null) {
-                            prootDistro.executeCommand(cmd)
+                        if (useProot) {
+                            if (prootDistro == null) {
+                                "ERROR: Ubuntu (proot) not available in this build"
+                            } else {
+                                val status = prootDistro.checkStatus()
+                                if (status != com.llucs.nexusai.terminal.ProotStatus.READY) {
+                                    "ERROR: Ubuntu (proot) not installed (status=$status). User must install it first via terminal panel."
+                                } else {
+                                    prootDistro.executeCommand(cmd)
+                                }
+                            }
                         } else {
                             terminalSession.executeCommand(cmd, timeout)
                         }
