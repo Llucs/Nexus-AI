@@ -14,6 +14,7 @@ import com.llucs.nexusai.planning.PlanningStore
 import com.llucs.nexusai.planning.Task
 import com.llucs.nexusai.planning.TaskStatus
 import com.llucs.nexusai.terminal.ProotDistro
+import com.llucs.nexusai.terminal.ProotStatus
 import com.llucs.nexusai.terminal.TerminalSession
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -164,20 +165,6 @@ class ChatViewModel(
         }
     }
 
-    private fun containsSimulatedCommandExecution(text: String): Boolean {
-        if (!aiTerminalEnabled) return false
-        if (terminalExecRequest.containsMatchIn(text)) return false
-        val patterns = listOf(
-            Regex("(?i)(run(ning)?\\s+command|execute?\\s+command|ran\\s+[`'\"][\\w/.-]+)"),
-            Regex("(?i)(the\\s+output\\s+(was|is|showed|returned))"),
-            Regex("(?i)(i\\s+(ran|executed|ran\\s+the\\s+following|installed\\s+using\\s+terminal))"),
-            Regex("(?i)(command\\s+output\\s*:?\\s*[\"'`]?\\w)"),
-            Regex("(?ms)```(?:bash|sh|shell)\\s+.*?```"),
-        )
-        val cleaned = text.replace(terminalExecRequest, "")
-        return patterns.any { it.containsMatchIn(cleaned) }
-    }
-
     private suspend fun handleAiCommands(content: String): String {
         if (!aiFileAccessEnabled && !aiTerminalEnabled && planningStore == null) return content
 
@@ -226,7 +213,7 @@ class ChatViewModel(
                                 "ERROR: Ubuntu (proot) not available in this build"
                             } else {
                                 val status = prootDistro.checkStatus()
-                                if (status != com.llucs.nexusai.terminal.ProotStatus.READY) {
+                                if (status != ProotStatus.READY) {
                                     "ERROR: Ubuntu (proot) not installed (status=$status). User must install it first via terminal panel."
                                 } else {
                                     prootDistro.executeCommand(cmd)
