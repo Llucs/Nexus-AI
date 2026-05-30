@@ -169,7 +169,7 @@ class ProotDistro(private val context: Context) {
         p.waitFor(120, java.util.concurrent.TimeUnit.SECONDS)
     }
 
-    fun getRootfsDir(): File = rootfsDir
+    fun getRootfsDirectory(): File = rootfsDir
 
     suspend fun uninstall() = withContext(Dispatchers.IO) {
         baseDir.deleteRecursively()
