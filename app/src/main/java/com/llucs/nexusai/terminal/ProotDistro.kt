@@ -171,6 +171,15 @@ class ProotDistro(private val context: Context) {
 
     fun getRootfsDirectory(): File = rootfsDir
 
+    suspend fun ensureInstalled(onOutput: ((String) -> Unit)? = null): ProotStatus = withContext(Dispatchers.IO) {
+        val status = checkStatus()
+        if (status == ProotStatus.READY) return@withContext ProotStatus.READY
+        val ok = install(onOutput)
+        if (ok) ProotStatus.READY else {
+            _state.value.let { it.status }
+        }
+    }
+
     suspend fun uninstall() = withContext(Dispatchers.IO) {
         baseDir.deleteRecursively()
         _state.value = ProotState(ProotStatus.NOT_INSTALLED)

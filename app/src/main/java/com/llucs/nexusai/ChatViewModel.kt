@@ -57,7 +57,7 @@ class ChatViewModel(
         RegexOption.DOT_MATCHES_ALL
     )
     private val terminalExecRequest = Regex(
-        "<<\\s*TERMINAL_EXEC\\s*:\\s*cmd=(.+?)(?:;timeout=(\\d+))?(?:;proot=(true|false))?\\s*>>",
+        "<<\\s*TERMINAL_EXEC\\s*:\\s*cmd=(.+?)(?:;timeout=(\\d+))?(?:;proot=(?:true|false))?\\s*>>",
         RegexOption.DOT_MATCHES_ALL
     )
     private val taskDoneRequest = Regex("<<\\s*TASK_DONE\\s*:\\s*(.+?)\\s*>>")
@@ -92,26 +92,22 @@ class ChatViewModel(
         _state.value = _state.value.copy(prootInstalling = installing)
     }
 
-    suspend fun executeAiCommand(command: String, useProot: Boolean = false): String {
+    suspend fun executeAiCommand(command: String): String {
         if (!aiTerminalEnabled) return "Terminal access disabled"
-        if (terminalSession == null && !useProot) return "Terminal not available"
-        if (!useProot && !terminalSession!!.isRunning) {
+        if (terminalSession == null) return "Terminal not available"
+        if (!terminalSession!!.isRunning) {
             val started = terminalSession!!.start()
             if (!started) return "Failed to start terminal"
         }
-        return if (useProot) {
-            if (prootDistro == null) {
-                "ERROR: Ubuntu (proot) is not available in this app build"
+        return try {
+            val prootReady = prootDistro != null && prootDistro.ensureInstalled() == ProotStatus.READY
+            if (prootReady) {
+                prootDistro!!.executeCommand(command)
             } else {
-                val status = prootDistro.checkStatus()
-                if (status != ProotStatus.READY) {
-                    "ERROR: Ubuntu (proot) is not installed. Status: $status. The user needs to install it via the terminal panel (click the terminal icon and press Install Ubuntu) before running Ubuntu commands."
-                } else {
-                    prootDistro.executeCommand(command)
-                }
+                terminalSession!!.executeCommand(command)
             }
-        } else {
-            terminalSession!!.executeCommand(command)
+        } catch (e: Exception) {
+            "Command error: ${e.message}"
         }
     }
 
@@ -204,21 +200,12 @@ class ChatViewModel(
             for (m in terminalExecRequest.findAll(content)) {
                 val cmd = m.groupValues[1].trim().replace("\\n", "\n")
                 val timeout = m.groupValues[2].toLongOrNull() ?: 30000
-                val useProot = m.groupValues[3].toBoolean()
-                val key = "$cmd|$timeout|$useProot"
+                val key = "$cmd|$timeout"
                 val result = terminalCache.getOrPut(key) {
                     try {
-                        if (useProot) {
-                            if (prootDistro == null) {
-                                "ERROR: Ubuntu (proot) not available in this build"
-                            } else {
-                                val status = prootDistro.checkStatus()
-                                if (status != ProotStatus.READY) {
-                                    "ERROR: Ubuntu (proot) not installed (status=$status). User must install it first via terminal panel."
-                                } else {
-                                    prootDistro.executeCommand(cmd)
-                                }
-                            }
+                        val prootReady = prootDistro != null && prootDistro.ensureInstalled() == ProotStatus.READY
+                        if (prootReady) {
+                            prootDistro!!.executeCommand(cmd)
                         } else {
                             terminalSession.executeCommand(cmd, timeout)
                         }
@@ -226,7 +213,7 @@ class ChatViewModel(
                         "Command error: ${e.message}"
                     }
                 }
-                replacements.add(m.range.first to (m.range.last - m.range.first + 1) to "\nCommand output:\n$result")
+                replacements.add(m.range.first to (m.range.last - m.range.first + 1) to "\n$result")
             }
         }
 
