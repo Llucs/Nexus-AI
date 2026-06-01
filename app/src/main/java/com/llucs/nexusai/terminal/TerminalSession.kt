@@ -50,6 +50,16 @@ class TerminalSession(
     private val commandQueue = ConcurrentLinkedQueue<String>()
     private val processing = AtomicBoolean(false)
 
+    private fun fixExecPerms(file: File) {
+        if (!file.exists()) return
+        file.setExecutable(true, false)
+        file.setReadable(true, false)
+        if (!file.canExecute()) {
+            try { Runtime.getRuntime().exec("chmod 755 " + file.absolutePath).waitFor() } catch (_: Exception) {}
+            try { Runtime.getRuntime().exec(arrayOf("/system/bin/chmod", "755", file.absolutePath)).waitFor() } catch (_: Exception) {}
+        }
+    }
+
     suspend fun start(shell: String = "/system/bin/sh"): Boolean = withContext(Dispatchers.IO) {
         if (_running.get()) return@withContext false
         try {
@@ -57,6 +67,9 @@ class TerminalSession(
             val env: MutableMap<String, String> = HashMap()
 
             if (prootBin != null && rootfsDir != null && File(prootBin).exists() && File(rootfsDir).exists()) {
+                fixExecPerms(File(prootBin))
+                fixExecPerms(File(prootBin).parentFile?.let { File(it, "loader") })
+                fixExecPerms(File(prootBin).parentFile?.let { File(it, "loader32") })
                 cmd = listOf(
                     prootBin,
                     "--link2symlink",

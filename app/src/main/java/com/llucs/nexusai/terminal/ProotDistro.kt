@@ -1,6 +1,7 @@
 package com.llucs.nexusai.terminal
 
 import android.content.Context
+import android.os.Process
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -84,20 +85,42 @@ class ProotDistro(private val context: Context) {
             val fileName = assetPath.substringAfterLast("/")
             val outFile = File(baseDir, fileName)
             try {
-                assetManager.open(assetPath).use { input ->
-                    FileOutputStream(outFile).use { output ->
+                val assetStream = assetManager.open(assetPath)
+                assetStream.use { input ->
+                    val outStream = FileOutputStream(outFile)
+                    outStream.use { output ->
                         input.copyTo(output)
                     }
                 }
-                outFile.setExecutable(true)
-                if (!outFile.canExecute()) {
-                    try {
-                        Runtime.getRuntime().exec("chmod 755 ${outFile.absolutePath}").waitFor()
-                    } catch (_: Exception) {}
-                }
+                setExecutablePerms(outFile)
             } catch (e: Exception) {
                 throw Exception("Failed to extract $assetPath: ${e.message}")
             }
+        }
+    }
+
+    private fun setExecutablePerms(file: File) {
+        file.setExecutable(true, false)
+        file.setReadable(true, false)
+        if (!file.canExecute()) {
+            try {
+                val p = Runtime.getRuntime().exec("chmod 755 " + file.absolutePath)
+                p.waitFor()
+            } catch (_: Exception) {}
+        }
+        if (!file.canExecute()) {
+            try {
+                val p = Runtime.getRuntime().exec("chown " + android.os.Process.myUid() + ":" + android.os.Process.myUid() + " " + file.absolutePath)
+                p.waitFor()
+                val p2 = Runtime.getRuntime().exec("chmod 755 " + file.absolutePath)
+                p2.waitFor()
+            } catch (_: Exception) {}
+        }
+        if (!file.canExecute()) {
+            try {
+                val p = Runtime.getRuntime().exec(arrayOf("/system/bin/chmod", "755", file.absolutePath))
+                p.waitFor()
+            } catch (_: Exception) {}
         }
     }
 
@@ -202,16 +225,61 @@ class ProotDistro(private val context: Context) {
     }
 
     suspend fun ensureProotExecutable(): Boolean = withContext(Dispatchers.IO) {
-        if (prootBin.exists() && !prootBin.canExecute()) {
-            prootBin.setExecutable(true)
-            if (!prootBin.canExecute()) {
-                try {
-                    val p = Runtime.getRuntime().exec("chmod 755 ${prootBin.absolutePath}")
-                    p.waitFor()
-                } catch (_: Exception) {}
+        for (name in listOf("proot", "loader", "loader32")) {
+            val f = File(baseDir, name)
+            if (f.exists() && !f.canExecute()) {
+                setExecutablePerms(f)
             }
         }
         prootBin.canExecute()
+    }
+
+    private fun buildProotCommand(command: String): Pair<List<String>, Map<String, String>> {
+        val loaderDir = baseDir.absolutePath
+        val env = mapOf(
+            "HOME" to "/root",
+            "TERM" to "xterm-256color",
+            "PATH" to "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "PROOT_LOADER_DIR" to loaderDir
+        )
+        val cmd = listOf(
+            prootBin.absolutePath,
+            "--link2symlink",
+            "-0",
+            "-r", rootfsDir.absolutePath,
+            "-b", "/dev",
+            "-b", "/proc",
+            "-b", "/sys",
+            "-w", "/root",
+            "/usr/bin/env",
+            "-i",
+            "HOME=/root",
+            "TERM=xterm-256color",
+            "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "/bin/bash", "-c", command
+        )
+        return cmd to env
+    }
+
+    private fun executeProcess(cmd: List<String>, env: Map<String, String>): String {
+        val pb = ProcessBuilder(cmd)
+        pb.environment().putAll(env)
+        val p = pb.start()
+        val stdout = p.inputStream.bufferedReader().readText()
+        val stderr = p.errorStream.bufferedReader().readText()
+        p.waitFor(60, java.util.concurrent.TimeUnit.SECONDS)
+        val exitCode = p.exitValue()
+        return buildString {
+            if (stdout.isNotBlank()) append(stdout)
+            if (stderr.isNotBlank()) {
+                if (isNotEmpty()) append("\n")
+                append(stderr)
+            }
+            if (exitCode != 0) {
+                if (isNotEmpty()) append("\n")
+                append("(exit code: $exitCode)")
+            }
+        }.ifBlank { if (exitCode == 0) "" else "(exit code: $exitCode)" }
     }
 
     suspend fun executeCommand(command: String): String = withContext(Dispatchers.IO) {
@@ -221,49 +289,24 @@ class ProotDistro(private val context: Context) {
         if (!ensureProotExecutable()) {
             return@withContext "Command error: Cannot execute proot binary - permission denied"
         }
+        val (cmd, env) = buildProotCommand(command)
         try {
-            val loaderDir = baseDir.absolutePath
-            val env = mapOf(
-                "HOME" to "/root",
-                "TERM" to "xterm-256color",
-                "PATH" to "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-                "PROOT_LOADER_DIR" to loaderDir
-            )
-            val cmd = listOf(
-                prootBin.absolutePath,
-                "--link2symlink",
-                "-0",
-                "-r", rootfsDir.absolutePath,
-                "-b", "/dev",
-                "-b", "/proc",
-                "-b", "/sys",
-                "-w", "/root",
-                "/usr/bin/env",
-                "-i",
-                "HOME=/root",
-                "TERM=xterm-256color",
-                "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-                "/bin/bash", "-c", command
-            )
-            val pb = ProcessBuilder(cmd)
-            pb.environment().putAll(env)
-            val p = pb.start()
-            val stdout = p.inputStream.bufferedReader().readText()
-            val stderr = p.errorStream.bufferedReader().readText()
-            p.waitFor(60, java.util.concurrent.TimeUnit.SECONDS)
-            val exitCode = p.exitValue()
-            buildString {
-                if (stdout.isNotBlank()) append(stdout)
-                if (stderr.isNotBlank()) {
-                    if (isNotEmpty()) append("\n")
-                    append(stderr)
-                }
-                if (exitCode != 0) {
-                    if (isNotEmpty()) append("\n")
-                    append("(exit code: $exitCode)")
-                }
-            }.ifBlank { if (exitCode == 0) "" else "(exit code: $exitCode)" }
+            executeProcess(cmd, env)
         } catch (e: Exception) {
+            if (e.message?.contains("Permission denied") == true || e.message?.contains("error=13") == true) {
+                try {
+                    setExecutablePerms(prootBin)
+                    setExecutablePerms(File(baseDir, "loader"))
+                    setExecutablePerms(File(baseDir, "loader32"))
+                    if (prootBin.canExecute()) {
+                        return@withContext try {
+                            executeProcess(cmd, env)
+                        } catch (e2: Exception) {
+                            "Command error: ${e2.message}"
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
             "Command error: ${e.message}"
         }
     }
