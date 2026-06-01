@@ -9,6 +9,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.io.RandomAccessFile
+import java.net.HttpURLConnection
 import java.net.URL
 
 enum class ProotStatus {
@@ -32,6 +33,82 @@ class ProotDistro(private val context: Context) {
     val rootfsDir: File get() = File(baseDir, "rootfs")
     private val markerFile: File get() = File(baseDir, ".installed")
 
+    companion object {
+        private val PROOT_DEB_URLS = mapOf(
+            "aarch64" to listOf(
+                "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.107.72_aarch64.deb",
+                "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.107.72_arm64.deb"
+            ),
+            "arm" to listOf(
+                "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.107.72_arm.deb",
+                "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.107.72_armhf.deb"
+            ),
+            "x86_64" to listOf(
+                "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.107.72_x86_64.deb",
+                "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.4.0_x86_64.deb"
+            ),
+            "i686" to listOf(
+                "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.107.72_i686.deb",
+                "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.4.0_i686.deb"
+            )
+        )
+
+        private val ROOTFS_URLS = listOf(
+            "https://github.com/termux/proot-distro/releases/download/v4.29.0/ubuntu-plucky-{arch}-pd-v4.29.0.tar.xz",
+            "https://github.com/termux/proot-distro/releases/download/v4.28.0/ubuntu-plucky-{arch}-pd-v4.28.0.tar.xz",
+            "https://github.com/termux/proot-distro/releases/download/v4.27.0/ubuntu-plucky-{arch}-pd-v4.27.0.tar.xz",
+            "https://github.com/termux/proot-distro/releases/download/v4.26.0/ubuntu-plucky-{arch}-pd-v4.26.0.tar.xz",
+            "https://github.com/termux/proot-distro/releases/download/v4.25.0/ubuntu-plucky-{arch}-pd-v4.25.0.tar.xz",
+            "https://github.com/termux/proot-distro/releases/download/v4.24.0/ubuntu-plucky-{arch}-pd-v4.24.0.tar.xz"
+        )
+
+        private val ROOTFS_ALT_URLS = listOf(
+            "https://github.com/termux/proot-distro/releases/download/v4.29.0/ubuntu-noble-{arch}-pd-v4.29.0.tar.xz",
+            "https://github.com/termux/proot-distro/releases/download/v4.28.0/ubuntu-noble-{arch}-pd-v4.28.0.tar.xz",
+            "https://github.com/termux/proot-distro/releases/download/v4.27.0/ubuntu-noble-{arch}-pd-v4.27.0.tar.xz",
+            "https://github.com/termux/proot-distro/releases/download/v4.26.0/ubuntu-noble-{arch}-pd-v4.26.0.tar.xz"
+        )
+    }
+
+    private fun getProotArch(): String {
+        val arch = System.getProperty("os.arch") ?: "aarch64"
+        return when {
+            arch.contains("aarch64") || arch.contains("arm64") -> "aarch64"
+            arch.contains("arm") -> "arm"
+            arch.contains("x86_64") || arch.contains("amd64") -> "x86_64"
+            arch.contains("x86") || arch.contains("i686") || arch.contains("i386") -> "i686"
+            else -> "aarch64"
+        }
+    }
+
+    private fun getUbuntuArch(prootArch: String): String = when (prootArch) {
+        "i686" -> "x86_64"
+        "arm" -> "armhf"
+        else -> prootArch
+    }
+
+    private fun urlExists(urlStr: String): Boolean {
+        return try {
+            val url = URL(urlStr)
+            val conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "HEAD"
+            conn.connectTimeout = 10000
+            conn.readTimeout = 5000
+            val code = conn.responseCode
+            conn.disconnect()
+            code in 200..399
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun findWorkingUrl(urls: List<String>): String? {
+        for (url in urls) {
+            if (urlExists(url)) return url
+        }
+        return urls.firstOrNull()
+    }
+
     suspend fun checkStatus(): ProotStatus = withContext(Dispatchers.IO) {
         if (markerFile.exists() && rootfsDir.isDirectory && rootfsDir.list()?.isNotEmpty() == true && prootBin.exists()) {
             _state.value = ProotState(status = ProotStatus.READY)
@@ -48,40 +125,35 @@ class ProotDistro(private val context: Context) {
             baseDir.mkdirs()
             rootfsDir.mkdirs()
 
-            val arch = System.getProperty("os.arch") ?: "aarch64"
-            val prootArch = when {
-                arch.contains("aarch64") || arch.contains("arm64") -> "aarch64"
-                arch.contains("arm") -> "arm"
-                arch.contains("x86_64") || arch.contains("amd64") -> "x86_64"
-                arch.contains("x86") || arch.contains("i686") || arch.contains("i386") -> "i686"
-                else -> "aarch64"
-            }
+            val prootArch = getProotArch()
 
             _state.value = ProotState(ProotStatus.DOWNLOADING, 0.1f, "Downloading proot binary...")
             onOutput?.invoke("Downloading proot binary...")
-            val debUrl = "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.107.72_$prootArch.deb"
+
+            val debUrls = PROOT_DEB_URLS[prootArch] ?: PROOT_DEB_URLS["aarch64"]!!
+            val workingDebUrl = findWorkingUrl(debUrls)
             val debFile = File(baseDir, "proot.deb")
-            try {
-                downloadFile(debUrl, debFile)
-            } catch (e: Exception) {
-                val altUrl = "https://github.com/termux/proot/releases/download/v5.1.107.72/proot-$prootArch"
-                downloadFile(altUrl, debFile)
-            }
+
+            downloadFile(workingDebUrl!!, debFile)
             extractProotFromDeb(debFile, prootBin)
             debFile.delete()
             prootBin.setExecutable(true)
 
+            if (!prootBin.exists()) {
+                throw Exception("Failed to extract proot binary from any source")
+            }
+
             _state.value = ProotState(ProotStatus.INSTALLING, 0.3f, "Downloading Ubuntu rootfs...")
             onOutput?.invoke("Downloading Ubuntu rootfs...")
 
-            val ubuntuArch = when (prootArch) {
-                "i686" -> "x86_64"
-                "arm" -> "armhf"
-                else -> prootArch
+            val ubuntuArch = getUbuntuArch(prootArch)
+            val allRootfsUrls = (ROOTFS_URLS + ROOTFS_ALT_URLS).map {
+                it.replace("{arch}", ubuntuArch)
             }
-            val rootfsUrl = "https://github.com/termux/proot-distro/releases/download/v4.29.0/ubuntu-plucky-$ubuntuArch-pd-v4.29.0.tar.xz"
+            val workingRootfsUrl = findWorkingUrl(allRootfsUrls)
             val rootfsArchive = File(baseDir, "ubuntu-rootfs.tar.xz")
-            downloadFile(rootfsUrl, rootfsArchive, onProgress = { p ->
+
+            downloadFile(workingRootfsUrl!!, rootfsArchive, onProgress = { p ->
                 _state.value = ProotState(ProotStatus.INSTALLING, 0.3f + p * 0.5f, "Downloading Ubuntu rootfs...")
             })
 
@@ -213,7 +285,7 @@ class ProotDistro(private val context: Context) {
         val url = URL(urlStr)
         val conn = url.openConnection()
         conn.connectTimeout = 15000
-        conn.readTimeout = 60000
+        conn.readTimeout = 120000
         val totalBytes = conn.contentLengthLong
         val input = conn.getInputStream()
         val output = FileOutputStream(target)
