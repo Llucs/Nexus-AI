@@ -135,7 +135,7 @@ class ProotDistro(private val context: Context) {
                     val entryName = if (name.endsWith("/")) name.dropLast(1) else name
                     val targetFile = File(dest, entryName)
 
-                    if (type == '5'.code.toByte()) {
+                    if (type == 53) {
                         targetFile.mkdirs()
                         remaining = 0
                     } else {
