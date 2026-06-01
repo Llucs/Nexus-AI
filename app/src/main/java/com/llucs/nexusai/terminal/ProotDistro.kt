@@ -11,7 +11,6 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
 import java.util.zip.GZIPInputStream
-import java.util.zip.ZipFile
 
 enum class ProotStatus {
     NOT_INSTALLED, DOWNLOADING, INSTALLING, READY, ERROR
@@ -125,18 +124,12 @@ class ProotDistro(private val context: Context) {
     }
 
     private fun extractRootfsFromAssets() {
-        val apkPath = context.applicationInfo.sourceDir
-        val entryPath = "assets/rootfs/ubuntu-rootfs.tgz"
         try {
-            ZipFile(apkPath).use { zip ->
-                val entry = zip.getEntry(entryPath)
-                    ?: throw Exception("Rootfs entry not found in APK: $entryPath")
-                zip.getInputStream(entry).use { input ->
-                    extractTarGz(input, rootfsDir)
-                }
+            context.assets.open("rootfs/ubuntu-rootfs.tgz").use { input ->
+                extractTarGz(input, rootfsDir)
             }
         } catch (e: Exception) {
-            throw Exception("Failed to extract rootfs from APK: ${e.message}")
+            throw Exception("Failed to extract rootfs: ${e.message}")
         }
         rootfsDir.setReadable(true, false)
     }
