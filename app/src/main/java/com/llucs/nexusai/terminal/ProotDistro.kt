@@ -36,37 +36,35 @@ class ProotDistro(private val context: Context) {
     companion object {
         private val PROOT_DEB_URLS = mapOf(
             "aarch64" to listOf(
-                "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.107.72_aarch64.deb",
-                "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.107.72_arm64.deb"
+                "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.107.74_aarch64.deb",
+                "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.107.73_aarch64.deb"
             ),
             "arm" to listOf(
-                "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.107.72_arm.deb",
-                "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.107.72_armhf.deb"
+                "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.107.74_arm.deb",
+                "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.107.73_arm.deb"
             ),
             "x86_64" to listOf(
-                "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.107.72_x86_64.deb",
-                "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.4.0_x86_64.deb"
+                "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.107.74_x86_64.deb",
+                "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.107.73_x86_64.deb"
             ),
             "i686" to listOf(
-                "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.107.72_i686.deb",
-                "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.4.0_i686.deb"
+                "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.107.74_i686.deb",
+                "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.107.73_i686.deb"
             )
         )
 
-        private val ROOTFS_URLS = listOf(
-            "https://github.com/termux/proot-distro/releases/download/v4.29.0/ubuntu-plucky-{arch}-pd-v4.29.0.tar.xz",
-            "https://github.com/termux/proot-distro/releases/download/v4.28.0/ubuntu-plucky-{arch}-pd-v4.28.0.tar.xz",
-            "https://github.com/termux/proot-distro/releases/download/v4.27.0/ubuntu-plucky-{arch}-pd-v4.27.0.tar.xz",
-            "https://github.com/termux/proot-distro/releases/download/v4.26.0/ubuntu-plucky-{arch}-pd-v4.26.0.tar.xz",
-            "https://github.com/termux/proot-distro/releases/download/v4.25.0/ubuntu-plucky-{arch}-pd-v4.25.0.tar.xz",
-            "https://github.com/termux/proot-distro/releases/download/v4.24.0/ubuntu-plucky-{arch}-pd-v4.24.0.tar.xz"
-        )
-
-        private val ROOTFS_ALT_URLS = listOf(
-            "https://github.com/termux/proot-distro/releases/download/v4.29.0/ubuntu-noble-{arch}-pd-v4.29.0.tar.xz",
-            "https://github.com/termux/proot-distro/releases/download/v4.28.0/ubuntu-noble-{arch}-pd-v4.28.0.tar.xz",
-            "https://github.com/termux/proot-distro/releases/download/v4.27.0/ubuntu-noble-{arch}-pd-v4.27.0.tar.xz",
-            "https://github.com/termux/proot-distro/releases/download/v4.26.0/ubuntu-noble-{arch}-pd-v4.26.0.tar.xz"
+        private val ROOTFS_URLS = mapOf(
+            "aarch64" to listOf(
+                "https://github.com/termux/proot-distro/releases/download/v4.29.0/ubuntu-plucky-aarch64-pd-v4.29.0.tar.xz",
+                "https://github.com/termux/proot-distro/releases/download/v4.28.0/ubuntu-plucky-aarch64-pd-v4.28.0.tar.xz"
+            ),
+            "x86_64" to listOf(
+                "https://github.com/termux/proot-distro/releases/download/v4.29.0/ubuntu-plucky-x86_64-pd-v4.29.0.tar.xz",
+                "https://github.com/termux/proot-distro/releases/download/v4.28.0/ubuntu-plucky-x86_64-pd-v4.28.0.tar.xz"
+            ),
+            "armhf" to listOf(
+                "https://github.com/termux/proot-distro/releases/download/v4.29.0/ubuntu-plucky-armhf-pd-v4.29.0.tar.xz"
+            )
         )
     }
 
@@ -92,6 +90,7 @@ class ProotDistro(private val context: Context) {
             val url = URL(urlStr)
             val conn = url.openConnection() as HttpURLConnection
             conn.requestMethod = "HEAD"
+            conn.instanceFollowRedirects = true
             conn.connectTimeout = 10000
             conn.readTimeout = 5000
             val code = conn.responseCode
@@ -106,7 +105,7 @@ class ProotDistro(private val context: Context) {
         for (url in urls) {
             if (urlExists(url)) return url
         }
-        return urls.firstOrNull()
+        return null
     }
 
     suspend fun checkStatus(): ProotStatus = withContext(Dispatchers.IO) {
@@ -132,9 +131,10 @@ class ProotDistro(private val context: Context) {
 
             val debUrls = PROOT_DEB_URLS[prootArch] ?: PROOT_DEB_URLS["aarch64"]!!
             val workingDebUrl = findWorkingUrl(debUrls)
+                ?: throw Exception("Nenhuma URL de proot respondeu. Verifique sua internet e tente novamente.")
             val debFile = File(baseDir, "proot.deb")
 
-            downloadFile(workingDebUrl!!, debFile)
+            downloadFile(workingDebUrl, debFile)
             extractProotFromDeb(debFile, prootBin)
             debFile.delete()
             prootBin.setExecutable(true)
@@ -147,13 +147,12 @@ class ProotDistro(private val context: Context) {
             onOutput?.invoke("Downloading Ubuntu rootfs...")
 
             val ubuntuArch = getUbuntuArch(prootArch)
-            val allRootfsUrls = (ROOTFS_URLS + ROOTFS_ALT_URLS).map {
-                it.replace("{arch}", ubuntuArch)
-            }
-            val workingRootfsUrl = findWorkingUrl(allRootfsUrls)
+            val rootfsCandidates = ROOTFS_URLS[ubuntuArch] ?: ROOTFS_URLS["aarch64"]!!
+            val workingRootfsUrl = findWorkingUrl(rootfsCandidates)
+                ?: throw Exception("Nenhuma URL de rootfs Ubuntu respondeu. Verifique sua internet.")
             val rootfsArchive = File(baseDir, "ubuntu-rootfs.tar.xz")
 
-            downloadFile(workingRootfsUrl!!, rootfsArchive, onProgress = { p ->
+            downloadFile(workingRootfsUrl, rootfsArchive, onProgress = { p ->
                 _state.value = ProotState(ProotStatus.INSTALLING, 0.3f + p * 0.5f, "Downloading Ubuntu rootfs...")
             })
 
