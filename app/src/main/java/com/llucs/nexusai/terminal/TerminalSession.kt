@@ -60,10 +60,14 @@ class TerminalSession(
         }
     }
 
+    private fun getLinker(): String {
+        val arch = System.getProperty("os.arch")?.lowercase() ?: ""
+        return if (arch.contains("64") || arch.contains("aarch64")) "/system/bin/linker64" else "/system/bin/linker"
+    }
+
     suspend fun start(shell: String = "/system/bin/sh"): Boolean = withContext(Dispatchers.IO) {
         if (_running.get()) return@withContext false
         try {
-            val cmd: List<String>
             val env: MutableMap<String, String> = HashMap()
 
             if (prootBin != null && rootfsDir != null && File(prootBin).exists() && File(rootfsDir).exists()) {
@@ -73,7 +77,7 @@ class TerminalSession(
                     fixExecPerms(File(parentDir, "loader"))
                     fixExecPerms(File(parentDir, "loader32"))
                 }
-                cmd = listOf(
+                val prootArgs = listOf(
                     prootBin,
                     "--link2symlink",
                     "-0",
@@ -93,25 +97,43 @@ class TerminalSession(
                 env["HOME"] = "/root"
                 env["TERM"] = "xterm-256color"
                 env["PATH"] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+                val pb = try {
+                    ProcessBuilder(prootArgs).apply {
+                        redirectErrorStream(false)
+                        environment().putAll(env)
+                    }.start()
+                } catch (e: Exception) {
+                    if (e.message?.contains("Permission denied") == true || e.message?.contains("error=13") == true) {
+                        val linkerArgs = listOf(getLinker()) + prootArgs
+                        ProcessBuilder(linkerArgs).apply {
+                            redirectErrorStream(false)
+                            environment().putAll(env)
+                        }.start()
+                    } else {
+                        throw e
+                    }
+                }
+                process = pb
+                stdin = pb.outputStream
+                _running.set(true)
             } else {
-                cmd = listOf(shell)
-                env["TERM"] = "xterm-256color"
-                env["HOME"] = System.getProperty("user.home") ?: "/data/data/com.llucs.nexusai/files"
+                val p = ProcessBuilder(listOf(shell)).apply {
+                    redirectErrorStream(false)
+                    environment()["TERM"] = "xterm-256color"
+                    environment()["HOME"] = System.getProperty("user.home") ?: "/data/data/com.llucs.nexusai/files"
+                }.start()
+                process = p
+                stdin = p.outputStream
+                _running.set(true)
             }
 
-            val pb = ProcessBuilder(cmd)
-            pb.redirectErrorStream(false)
-            pb.environment().putAll(env)
-            val p = pb.start()
-            process = p
-            stdin = p.outputStream
-            _running.set(true)
-
+            val proc = process ?: return@withContext false
             val buf = ByteArray(8192)
             processThread = Thread {
                 try {
-                    while (_running.get() && p.isAlive) {
-                        val read = p.inputStream.read(buf)
+                    while (_running.get() && proc.isAlive) {
+                        val read = proc.inputStream.read(buf)
                         if (read <= 0) break
                         val text = String(buf, 0, read, Charsets.UTF_8)
                         if (text.isNotBlank()) {
@@ -129,8 +151,8 @@ class TerminalSession(
 
             Thread {
                 try {
-                    while (_running.get() && p.isAlive) {
-                        val read = p.errorStream.read(buf)
+                    while (_running.get() && proc.isAlive) {
+                        val read = proc.errorStream.read(buf)
                         if (read <= 0) break
                         val text = String(buf, 0, read, Charsets.UTF_8)
                         if (text.isNotBlank()) {
@@ -147,9 +169,9 @@ class TerminalSession(
             }
 
             Thread {
-                while (_running.get() && p.isAlive) {
+                while (_running.get() && proc.isAlive) {
                     try {
-                        p.waitFor()
+                        proc.waitFor()
                     } catch (_: InterruptedException) { break }
                     _running.set(false)
                 }

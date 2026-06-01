@@ -217,6 +217,15 @@ class ProotDistro(private val context: Context) {
         return str.trim().toLongOrNull(8) ?: 0L
     }
 
+    private fun getLinker(): String {
+        val arch = System.getProperty("os.arch")?.lowercase() ?: ""
+        return if (arch.contains("64") || arch.contains("aarch64")) {
+            "/system/bin/linker64"
+        } else {
+            "/system/bin/linker"
+        }
+    }
+
     suspend fun ensureProotExecutable(): Boolean = withContext(Dispatchers.IO) {
         for (name in listOf("proot", "loader", "loader32")) {
             val f = File(baseDir, name)
@@ -227,7 +236,7 @@ class ProotDistro(private val context: Context) {
         prootBin.canExecute()
     }
 
-    private fun buildProotCommand(command: String): Pair<List<String>, Map<String, String>> {
+    private fun buildProotCommand(command: String): Triple<List<String>, Map<String, String>, List<String>> {
         val loaderDir = baseDir.absolutePath
         val env = mapOf(
             "HOME" to "/root",
@@ -235,8 +244,7 @@ class ProotDistro(private val context: Context) {
             "PATH" to "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
             "PROOT_LOADER_DIR" to loaderDir
         )
-        val cmd = listOf(
-            prootBin.absolutePath,
+        val prootArgs = listOf(
             "--link2symlink",
             "-0",
             "-r", rootfsDir.absolutePath,
@@ -251,7 +259,10 @@ class ProotDistro(private val context: Context) {
             "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
             "/bin/bash", "-c", command
         )
-        return cmd to env
+        val linker = getLinker()
+        val directCmd = listOf(prootBin.absolutePath) + prootArgs
+        val linkerCmd = listOf(linker, prootBin.absolutePath) + prootArgs
+        return Triple(directCmd, linkerCmd, env)
     }
 
     private fun executeProcess(cmd: List<String>, env: Map<String, String>): String {
@@ -279,26 +290,21 @@ class ProotDistro(private val context: Context) {
         if (_state.value.status != ProotStatus.READY) {
             return@withContext "Ubuntu not installed yet"
         }
-        if (!ensureProotExecutable()) {
-            return@withContext "Command error: Cannot execute proot binary - permission denied"
-        }
-        val (cmd, env) = buildProotCommand(command)
+        val (directCmd, linkerCmd, env) = buildProotCommand(command)
         try {
-            executeProcess(cmd, env)
+            executeProcess(directCmd, env)
         } catch (e: Exception) {
             if (e.message?.contains("Permission denied") == true || e.message?.contains("error=13") == true) {
                 try {
                     setExecutablePerms(prootBin)
                     setExecutablePerms(File(baseDir, "loader"))
                     setExecutablePerms(File(baseDir, "loader32"))
-                    if (prootBin.canExecute()) {
-                        return@withContext try {
-                            executeProcess(cmd, env)
-                        } catch (e2: Exception) {
-                            "Command error: ${e2.message}"
-                        }
-                    }
                 } catch (_: Exception) {}
+                return@withContext try {
+                    executeProcess(linkerCmd, env)
+                } catch (e2: Exception) {
+                    "Command error: ${e2.message}"
+                }
             }
             "Command error: ${e.message}"
         }
