@@ -183,21 +183,13 @@ class ProotDistro(private val context: Context) {
     }
 
     private fun extractTarString(data: ByteArray, offset: Int, maxLen: Int): String? {
-        val end = data.indexOf(0, offset)
-        return if (end in offset..<offset + maxLen) {
-            data.sliceArray(offset..<end).decodeToString()
-        } else {
-            null
-        }
+        val end = (offset until offset + maxLen).firstOrNull { data[it] == 0.toByte() } ?: (offset + maxLen)
+        return data.sliceArray(offset until end).decodeToString()
     }
 
     private fun extractTarOctal(data: ByteArray, offset: Int, maxLen: Int): Long {
-        val end = data.indexOf(0, offset)
-        val str = if (end in offset..<offset + maxLen) {
-            data.sliceArray(offset..<end).decodeToString()
-        } else {
-            data.sliceArray(offset..<offset + maxLen).decodeToString()
-        }
+        val end = (offset until offset + maxLen).firstOrNull { data[it] == 0.toByte() } ?: (offset + maxLen)
+        val str = data.sliceArray(offset until end).decodeToString()
         return str.trim().toLongOrNull(8) ?: 0L
     }
 
