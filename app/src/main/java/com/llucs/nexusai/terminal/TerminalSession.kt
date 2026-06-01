@@ -68,8 +68,11 @@ class TerminalSession(
 
             if (prootBin != null && rootfsDir != null && File(prootBin).exists() && File(rootfsDir).exists()) {
                 fixExecPerms(File(prootBin))
-                fixExecPerms(File(prootBin).parentFile?.let { File(it, "loader") })
-                fixExecPerms(File(prootBin).parentFile?.let { File(it, "loader32") })
+                val parentDir = File(prootBin).parentFile
+                if (parentDir != null) {
+                    fixExecPerms(File(parentDir, "loader"))
+                    fixExecPerms(File(parentDir, "loader32"))
+                }
                 cmd = listOf(
                     prootBin,
                     "--link2symlink",
