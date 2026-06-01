@@ -98,7 +98,7 @@ class ProotDistro(private val context: Context) {
 
     private fun extractRootfsFromAssets() {
         val apkPath = context.applicationInfo.sourceDir
-        val entryPath = "assets/rootfs/ubuntu-rootfs.tar.gz"
+        val entryPath = "assets/rootfs/ubuntu-rootfs.tgz"
         try {
             ZipFile(apkPath).use { zip ->
                 val entry = zip.getEntry(entryPath)
