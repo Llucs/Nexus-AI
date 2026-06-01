@@ -236,7 +236,7 @@ class ProotDistro(private val context: Context) {
         prootBin.canExecute()
     }
 
-    private fun buildProotCommand(command: String): Triple<List<String>, Map<String, String>, List<String>> {
+    private fun buildProotCommand(command: String): Triple<List<String>, List<String>, Map<String, String>> {
         val loaderDir = baseDir.absolutePath
         val env = mapOf(
             "HOME" to "/root",
