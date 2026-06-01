@@ -158,7 +158,7 @@ class ProotDistro(private val context: Context) {
 
             _state.value = ProotState(ProotStatus.INSTALLING, 0.8f, "Extracting rootfs...")
             onOutput?.invoke("Extracting rootfs...")
-            extractTarXz(rootfsArchive, rootfsDir)
+            extractAnyTar(rootfsArchive, rootfsDir, stripComponents = 1)
             rootfsArchive.delete()
 
             val resolvConf = File(rootfsDir, "etc/resolv.conf")
@@ -233,51 +233,77 @@ class ProotDistro(private val context: Context) {
     }
 
     private fun extractProotFromDeb(debFile: File, outputFile: File) {
-        val raf = RandomAccessFile(debFile, "r")
-        val magic = ByteArray(8)
-        raf.readFully(magic)
-        val magicStr = String(magic, Charsets.US_ASCII)
-        if (magicStr != "!<arch>\n") throw Exception("Not a valid deb archive")
+        val tmpDir = File(baseDir, "deb_extract")
+        tmpDir.mkdirs()
 
-        while (raf.filePointer < raf.length()) {
-            val hdr = ByteArray(60)
-            raf.readFully(hdr)
-            val name = String(hdr, 0, 16, Charsets.US_ASCII).trim()
-            val sizeStr = String(hdr, 48, 10, Charsets.US_ASCII).trim()
-            val size = sizeStr.toLongOrNull() ?: 0L
-            val padded = size + (size % 2L)
+        try {
+            val raf = RandomAccessFile(debFile, "r")
+            val magic = ByteArray(8)
+            raf.readFully(magic)
+            val magicStr = String(magic, Charsets.US_ASCII)
+            if (magicStr != "!<arch>\n") throw Exception("Not a valid deb archive")
 
-            if (name.startsWith("data.tar")) {
-                val dataBytes = ByteArray(size.toInt())
-                raf.readFully(dataBytes)
-                val tarFile = File(baseDir, name)
-                FileOutputStream(tarFile).use { it.write(dataBytes) }
-                extractTarXz(tarFile, baseDir)
+            while (raf.filePointer < raf.length()) {
+                val hdr = ByteArray(60)
+                raf.readFully(hdr)
+                val name = String(hdr, 0, 16, Charsets.US_ASCII).trim()
+                val sizeStr = String(hdr, 48, 10, Charsets.US_ASCII).trim()
+                val size = sizeStr.toLongOrNull() ?: 0L
+                val padded = size + (size % 2L)
 
-                val extractedBin = File(baseDir, "data/data/com.termux/files/usr/bin/proot")
-                if (extractedBin.exists()) {
-                    extractedBin.copyTo(outputFile, overwrite = true)
-                } else {
-                    val altBin = File(baseDir, "usr/bin/proot")
-                    if (altBin.exists()) altBin.copyTo(outputFile, overwrite = true)
+                if (name.startsWith("data.tar")) {
+                    val dataBytes = ByteArray(size.toInt())
+                    raf.readFully(dataBytes)
+                    val tarFile = File(tmpDir, name)
+                    FileOutputStream(tarFile).use { it.write(dataBytes) }
+                    extractAnyTar(tarFile, tmpDir)
+                    tarFile.delete()
+
+                    val found = findProotBinary(tmpDir)
+                    if (found != null) {
+                        found.copyTo(outputFile, overwrite = true)
+                        raf.close()
+                        return
+                    }
                 }
-                tarFile.delete()
-                cleanupExtracted(baseDir)
-                raf.close()
-                return
-            }
 
-            raf.skipBytes(padded.toInt())
+                raf.skipBytes(padded.toInt())
+            }
+            raf.close()
+            throw Exception("data.tar not found in deb")
+        } finally {
+            tmpDir.deleteRecursively()
         }
-        raf.close()
-        throw Exception("data.tar not found in deb")
     }
 
-    private fun cleanupExtracted(dir: File) {
-        val extractedDir = File(dir, "data")
-        if (extractedDir.exists()) extractedDir.deleteRecursively()
-        val usrDir = File(dir, "usr")
-        if (usrDir.exists()) usrDir.deleteRecursively()
+    private fun findProotBinary(dir: File): File? {
+        val files = dir.walkTopDown().filter { it.name == "proot" && it.isFile }.toList()
+        if (files.isNotEmpty()) return files.first()
+        val altFiles = dir.walkTopDown().filter { it.name.contains("proot") && it.isFile }.toList()
+        if (altFiles.isNotEmpty()) return altFiles.first()
+        return null
+    }
+
+    private fun extractAnyTar(archive: File, dest: File, stripComponents: Int = 0) {
+        val name = archive.name
+        val cmd = mutableListOf<String>()
+        when {
+            name.endsWith(".xz") -> { cmd.addAll(listOf("tar", "-xJf")) }
+            name.endsWith(".gz") || name.endsWith(".gzip") -> { cmd.addAll(listOf("tar", "-xzf")) }
+            name.endsWith(".zst") || name.endsWith(".zstd") -> { cmd.addAll(listOf("tar", "--zstd", "-xf")) }
+            else -> { cmd.addAll(listOf("tar", "-xf")) }
+        }
+        cmd.add(archive.absolutePath)
+        cmd.add("-C")
+        cmd.add(dest.absolutePath)
+        if (stripComponents > 0) {
+            cmd.add("--strip-components=$stripComponents")
+        }
+        val pb = ProcessBuilder(cmd)
+        pb.redirectErrorStream(true)
+        val p = pb.start()
+        p.inputStream.bufferedReader().readText()
+        p.waitFor(60, java.util.concurrent.TimeUnit.SECONDS)
     }
 
     private fun downloadFile(urlStr: String, target: File, onProgress: ((Float) -> Unit)? = null) {
@@ -300,18 +326,6 @@ class ProotDistro(private val context: Context) {
         }
         output.close()
         input.close()
-    }
-
-    private fun extractTarXz(archive: File, dest: File) {
-        val pb = ProcessBuilder(
-            "tar", "-xJf", archive.absolutePath,
-            "-C", dest.absolutePath,
-            "--strip-components=1"
-        )
-        pb.redirectErrorStream(true)
-        val p = pb.start()
-        p.inputStream.bufferedReader().readText()
-        p.waitFor(120, java.util.concurrent.TimeUnit.SECONDS)
     }
 
     fun getRootfsDirectory(): File = rootfsDir
