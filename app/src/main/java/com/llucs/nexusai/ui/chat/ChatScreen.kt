@@ -835,47 +835,6 @@ private fun TerminalBottomSheet(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun PlanningBottomSheet(
-    activePlan: Plan?,
-    plans: List<Plan>,
-    onToggleTask: (String, String, TaskStatus) -> Unit,
-    onDeletePlan: (String) -> Unit,
-    onDeleteTask: (String, String) -> Unit,
-    onCreatePlan: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    LaunchedEffect(Unit) { sheetState.show() }
-    val scope = rememberCoroutineScope()
-    fun close() { scope.launch { runCatching { sheetState.hide() }; onDismiss() } }
-
-    ModalBottomSheet(
-        onDismissRequest = { close() },
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface
-    ) {
-        Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(vertical = 12.dp)) {
-            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(text = stringResource(R.string.planning_title), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-                FilledTonalIconButton(onClick = onCreatePlan) { Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.planning_create)) }
-                Spacer(Modifier.width(8.dp))
-                FilledTonalIconButton(onClick = { close() }) { Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.action_close)) }
-            }
-            Spacer(Modifier.height(12.dp))
-            PlanningPanel(
-                activePlan = activePlan,
-                plans = plans,
-                onToggleTask = onToggleTask,
-                onDeletePlan = onDeletePlan,
-                onDeleteTask = onDeleteTask,
-                onCreatePlan = onCreatePlan
-            )
-        }
-    }
-}
-
 @Suppress("DEPRECATION")
 private fun getAppVersionName(context: Context): String = try { context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "?" } catch (_: Exception) { "?" }
 
