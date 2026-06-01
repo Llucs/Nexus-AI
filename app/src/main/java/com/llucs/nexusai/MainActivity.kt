@@ -115,6 +115,12 @@ class MainActivity : ComponentActivity() {
                     if (savedName.isBlank()) showNameDialog = true
                 }
 
+                LaunchedEffect(Unit) {
+                    if (prefs.getAiTerminalEnabled(false)) {
+                        prootDistro.ensureInstalled()
+                    }
+                }
+
                 val lang = normalizeLanguage(languageCode)
 
                 Surface(color = MaterialTheme.colorScheme.background) {

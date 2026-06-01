@@ -132,11 +132,9 @@ import com.llucs.nexusai.data.MemoryStore
 import com.llucs.nexusai.data.StoredChat
 import com.llucs.nexusai.data.UserPrefs
 import com.llucs.nexusai.files.FileTransfer
-import com.llucs.nexusai.planning.CreatePlanDialog
 import com.llucs.nexusai.planning.Plan
 import com.llucs.nexusai.planning.PlanCard
 import com.llucs.nexusai.planning.PlanningStore
-import com.llucs.nexusai.planning.PlanningPanel
 import com.llucs.nexusai.planning.TaskStatus
 import com.llucs.nexusai.splitMarkdown
 import com.llucs.nexusai.terminal.ProotDistro
@@ -182,11 +180,8 @@ fun ChatScreen(
     var terminalEnabled by rememberSaveable { mutableStateOf(false) }
     var showTerminal by rememberSaveable { mutableStateOf(false) }
     var fileAccessEnabled by rememberSaveable { mutableStateOf(false) }
-    var showPlanning by rememberSaveable { mutableStateOf(false) }
-    var showCreatePlan by rememberSaveable { mutableStateOf(false) }
 
     val hasTerminal = terminalSession != null
-    val hasPlanning = planningStore != null
 
     val navLetter = userName.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "N"
     val trimmedName = userName.trim()
@@ -253,23 +248,35 @@ fun ChatScreen(
         else -> "Hi! I'm Nexus AI.\n\n$nameHint\n\n$appIdentity\n\n${if (memoriesBlock.isNotBlank()) memoriesBlock + "\n\n" else ""}$memorySaveRules\n\nRules:\n- Speak clearly and keep it simple.\n- Go straight to the point.\n- Don't glue words, letters, and numbers together.\n- Use well-formatted Markdown when helpful.\n- If I don't know something, I'll say so and suggest alternatives.$antiHallucinationRules"
     }
 
+    val terminalDisabledPrompt = if (!terminalEnabled && hasTerminal) when (locale) {
+        "pt" -> "\n\n\u26A0\uFE0F TERMINAL DA IA EST\u00c1 DESATIVADO: Voc\u00ea N\u00c3O tem acesso ao terminal Linux. N\u00c3O use <<TERMINAL_EXEC>>. N\u00c3O finja executar comandos. Se precisar do terminal, pe\u00e7a para o usu\u00e1rio ativar em Configura\u00e7\u00f5es."
+        "es" -> "\n\n\u26A0\uFE0F TERMINAL DE IA EST\u00c1 DESACTIVADO: NO tienes acceso al terminal Linux. NO uses <<TERMINAL_EXEC>>. NO finjas ejecutar comandos."
+        else -> "\n\n\u26A0\uFE0F AI TERMINAL IS DISABLED: You do NOT have terminal access. DO NOT use <<TERMINAL_EXEC>>. DO NOT pretend to run commands. Ask the user to enable it in Settings if needed."
+    } else ""
+
     val terminalSystemPrompt = if (terminalEnabled && hasTerminal) when (locale) {
         "pt" -> "\n\nVoc\u00ea TEM acesso ao terminal Ubuntu via PRoot.\n\nFerramentas dispon\u00edveis:\n1. <<TERMINAL_EXEC: cmd=comando;timeout=60000>> - Execute qualquer comando Linux (bash, python3, apt, git, etc)\n2. <<FILE_SEND: name=caminho;content=conte\u00fado>> - Crie/escreva arquivos\n3. <<FILE_SHARE: name=caminho>> - Compartilhe arquivos criados\n4. <<PLAN: title=T\u00edtulo;goal=Objetivo;tasks=Tarefa 1|Tarefa 2>> - Crie planos\n5. <<TASK_DONE: descri\u00e7\u00e3o>> - Marque tarefas como conclu\u00eddas\n\nFORMATO DE AGENTE AUT\u00d4NOMO:\nSempre que receber uma tarefa, siga este fluxo:\n\nPASSO 1 - PLANEJAR:\nExplique seu plano. Use <<PLAN>> para criar um plano com checklist.\n\nPASSO 2 - EXECUTAR:\nExecute comandos um de cada vez com <<TERMINAL_EXEC>>. Comece sempre testando o ambiente:\n<<TERMINAL_EXEC: cmd=which python3 git node>>\n<<TERMINAL_EXEC: cmd=python3 --version>>\n\nPASSO 3 - OBSERVAR:\nLeia a sa\u00edda real do comando. NUNCA invente resultados.\n\nPASSO 4 - ANALISAR:\nSe o comando falhou, leia o erro. Se faltam ferramentas, instale:\n<<TERMINAL_EXEC: cmd=apt-get update -qq && apt-get install -y -qq python3-pip>>\n\nPASSO 5 - CORRIGIR E REPETIR:\nSe houver erro, corrija e tente novamente. Continue at\u00e9 completar.\n\nREGRAS ABSOLUTAS:\n- NUNCA use placeholder em vez de comando real\n- NUNCA invente sa\u00eddas de comandos\n- NUNCA diga que algo existe sem testar primeiro com which/--version\n- NUNCA pe\u00e7a para o usu\u00e1rio instalar nada - use apt-get install\n- Sempre mostre a sa\u00edda real dos comandos\n- Se algo falhar 3 vezes, pare e explique o problema"
         "es" -> "\n\nTIENES acceso al terminal Ubuntu via PRoot.\n\nHerramientas:\n1. <<TERMINAL_EXEC: cmd=comando;timeout=60000>> - Ejecuta cualquier comando Linux\n2. <<FILE_SEND: name=archivo;content=contenido>> - Crea/escribe archivos\n3. <<FILE_SHARE: name=archivo>> - Comparte archivos\n4. <<PLAN: title=T\u00edtulo;goal=Objetivo;tasks=Tarea 1|Tarea 2>> - Crea planes\n5. <<TASK_DONE: descripci\u00f3n>> - Marca tareas completadas\n\nFORMATO DE AGENTE AUT\u00d3NOMO:\nPASO 1 - PLANIFICAR: Explica tu plan. Usa <<PLAN>> para crear checklist.\nPASO 2 - EJECUTAR: Comandos uno por uno con <<TERMINAL_EXEC>>.\nPASO 3 - OBSERVAR: Lee la salida real. NUNCA inventes resultados.\nPASO 4 - ANALIZAR: Si fall\u00f3, lee el error. Si falta algo, instala.\nPASO 5 - CORREGIR Y REPETIR: Corrige errores y reintenta hasta completar.\n\nREGLAS: Sin placeholders, sin simulaciones, sin pedir al usuario que instale nada."
         else -> "\n\nYou HAVE access to the Ubuntu terminal via PRoot.\n\nAvailable tools:\n1. <<TERMINAL_EXEC: cmd=command;timeout=60000>> - Execute any Linux command (bash, python3, apt, git, etc)\n2. <<FILE_SEND: name=path;content=data>> - Create/write files\n3. <<FILE_SHARE: name=path>> - Share created files\n4. <<PLAN: title=Title;goal=Goal;tasks=Task 1|Task 2>> - Create step-by-step plans\n5. <<TASK_DONE: description>> - Mark tasks as done\n\nAUTONOMOUS AGENT WORKFLOW:\nWhen given a task, ALWAYS follow this loop:\n\nSTEP 1 - PLAN:\nExplain your approach. Create a plan with <<PLAN>> for multi-step tasks.\n\nSTEP 2 - EXECUTE:\nRun commands one at a time. First, always test the environment:\n<<TERMINAL_EXEC: cmd=which python3 git node>>\n<<TERMINAL_EXEC: cmd=python3 --version>>\n\nSTEP 3 - OBSERVE:\nRead the REAL output. NEVER invent or simulate results.\n\nSTEP 4 - ANALYZE:\nIf a command fails, read the error. If tools are missing, install them:\n<<TERMINAL_EXEC: cmd=apt-get update -qq && apt-get install -y -qq python3-pip>>\n\nSTEP 5 - CORRECT & REPEAT:\nFix errors and retry. Loop until the task is complete.\n\nABSOLUTE RULES:\n- NEVER use placeholder text instead of a real command\n- NEVER invent command outputs\n- NEVER claim something exists without testing first with which/--version\n- NEVER ask the user to install anything - use apt-get install\n- Always show real command outputs\n- If something fails 3 times, stop and explain the problem honestly"
     } else ""
+    val fileAccessDisabledPrompt = if (!fileAccessEnabled) when (locale) {
+        "pt" -> "\n\n\u26A0\uFE0F ACESSO A ARQUIVOS DESATIVADO: Voc\u00ea N\u00c3O pode criar, salvar ou compartilhar arquivos. N\u00c3O use <<FILE_SEND>> ou <<FILE_SHARE>>."
+        "es" -> "\n\n\u26A0\uFE0F ACCESO A ARCHIVOS DESACTIVADO: NO puedes crear, guardar o compartir archivos. NO uses <<FILE_SEND>> o <<FILE_SHARE>>."
+        else -> "\n\n\u26A0\uFE0F FILE ACCESS DISABLED: You CANNOT create, save, or share files. DO NOT use <<FILE_SEND>> or <<FILE_SHARE>>."
+    } else ""
+
     val fileSystemPrompt = if (fileAccessEnabled) when (locale) {
         "pt" -> "\n\nVoc\u00ea pode criar arquivos com <<FILE_SEND: name=arquivo.txt;content=texto>>. Compartilhe com <<FILE_SHARE: name=arquivo.txt>>."
         "es" -> "\n\nPuedes crear archivos con <<FILE_SEND: name=archivo.txt;content=texto>>. Comparte con <<FILE_SHARE: name=archivo.txt>>."
         else -> "\n\nYou can create files with <<FILE_SEND: name=file.txt;content=text>>. Share with <<FILE_SHARE: name=file.txt>>."
     } else ""
-    val planSystemPrompt = if (hasPlanning) when (locale) {
+    val planSystemPrompt = if (planningStore != null) when (locale) {
         "pt" -> "\n\nCrie planos passo a passo com checklist. Use <<PLAN: title=T\u00edtulo;goal=Objetivo;tasks=Tarefa 1|Tarefa 2>>. Marque conclu\u00edda com <<TASK_DONE: descri\u00e7\u00e3o>>. Atualize com <<PLAN_UPDATE: title=...;goal=...;tasks=...>>."
         "es" -> "\n\nCrea planes paso a paso con checklist. Usa <<PLAN: title=T\u00edtulo;goal=Objetivo;tasks=Tarea 1|Tarea 2>>. Marca completada con <<TASK_DONE: descripci\u00f3n>>."
         else -> "\n\nCreate step-by-step plans with checklists. Use <<PLAN: title=Title;goal=Goal;tasks=Task 1|Task 2>>. Mark done with <<TASK_DONE: description>>. Update with <<PLAN_UPDATE: title=...;goal=...;tasks=...>>."
     } else ""
 
-    val finalSystemPrompt = systemPrompt + terminalSystemPrompt + fileSystemPrompt + planSystemPrompt + if (hasName) "\n\n" + when (locale) {
+    val finalSystemPrompt = systemPrompt + terminalDisabledPrompt + terminalSystemPrompt + fileAccessDisabledPrompt + fileSystemPrompt + planSystemPrompt + if (hasName) "\n\n" + when (locale) {
         "pt" -> "Nome preferido do usu\u00e1rio: $displayName. Use o nome s\u00f3 quando for natural; n\u00e3o repita em toda resposta."
         "es" -> "Nombre preferido del usuario: $displayName. Usa el nombre solo cuando sea natural; no lo repitas en cada respuesta."
         "ru" -> "\u041f\u0440\u0435\u0434\u043f\u043e\u0447\u0442\u0438\u0442\u0435\u043b\u044c\u043d\u043e\u0435 \u0438\u043c\u044f \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044f: $displayName. \u0418\u0441\u043f\u043e\u043b\u044c\u0437\u0443\u0439 \u0438\u043c\u044f \u0442\u043e\u043b\u044c\u043a\u043e \u043a\u043e\u0433\u0434\u0430 \u044d\u0442\u043e \u0443\u043c\u0435\u0441\u0442\u043d\u043e."
@@ -322,6 +329,8 @@ fun ChatScreen(
         runCatching { memories = memoryStore.loadMemories() }
         runCatching { terminalEnabled = prefs.getAiTerminalEnabled(false) }
         runCatching { vm.updateTerminalSettings(terminalEnabled) }
+        runCatching { fileAccessEnabled = prefs.getFileAccessEnabled(false) }
+        runCatching { vm.updateFileAccessSettings(fileAccessEnabled) }
     }
 
     val copiedText = stringResource(R.string.snack_copied)
@@ -353,19 +362,11 @@ fun ChatScreen(
         activePlanInline = uiState.activePlan
     }
 
-    LaunchedEffect(showPlanning) {
-        if (planningStore != null && showPlanning) {
-            val plan = planningStore.getActivePlan()
-            activePlanInline = plan
-        }
-    }
-
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = { NexusTopBar(sending = uiState.sending, navLetter = navLetter, onOpenSettings = { showSettings = true }, onHistory = vm::openHistory, onNewChat = vm::newChat, onStop = vm::stop, scrollBehavior = scrollBehavior, lastTokenUsage = uiState.lastTokenUsage,
-            showTerminal = hasTerminal, onTerminal = { showTerminal = true },
-            showPlanning = hasPlanning, onPlanning = { showPlanning = true }) },
+            showTerminal = hasTerminal, onTerminal = { showTerminal = true }) },
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             if (voiceMode) VoiceInputBar(state = voiceState, onToggleShowText = voiceController::toggleShowText, onCancel = { voiceMode = false }, onSendText = { t ->
@@ -418,7 +419,7 @@ fun ChatScreen(
         onToggleMemoriesEnabled = { memoriesEnabled = it; uiScope.launch { prefs.setMemoriesEnabled(it) } },
         onToggleMemoryAutoSave = { memoryAutoSaveEnabled = it; uiScope.launch { prefs.setMemoryAutoSaveEnabled(it) } },
         onToggleTerminal = { terminalEnabled = it; uiScope.launch { prefs.setAiTerminalEnabled(it) }; vm.updateTerminalSettings(it) },
-        onToggleFileAccess = { fileAccessEnabled = it; vm.updateFileAccessSettings(it) },
+        onToggleFileAccess = { fileAccessEnabled = it; uiScope.launch { prefs.setFileAccessEnabled(it) }; vm.updateFileAccessSettings(it) },
         onOpenMemoriesManager = { showMemoriesManager = true }, onEditName = { showSettings = false; onEditName() },
         onChangeLanguage = { showSettings = false; onChangeLanguage(it) }, sourceUrl = sourceUrl, onDismiss = { showSettings = false })
 
@@ -432,39 +433,11 @@ fun ChatScreen(
         proot = prootDistro,
         onDismiss = { showTerminal = false }
     )
-
-    if (showPlanning && planningStore != null) {
-        var plansList by remember { mutableStateOf<List<Plan>>(emptyList()) }
-        var currentActivePlan by remember { mutableStateOf<Plan?>(null) }
-        LaunchedEffect(showPlanning) {
-            if (showPlanning) {
-                plansList = planningStore.loadPlans()
-                currentActivePlan = planningStore.getActivePlan()
-            }
-        }
-        PlanningBottomSheet(
-            activePlan = currentActivePlan,
-            plans = plansList,
-            onToggleTask = vm::toggleTask,
-            onDeletePlan = vm::deletePlan,
-            onDeleteTask = vm::deleteTask,
-            onCreatePlan = { showCreatePlan = true },
-            onDismiss = { showPlanning = false }
-        )
-    }
-
-    if (showCreatePlan) CreatePlanDialog(
-        onDismiss = { showCreatePlan = false },
-        onCreate = { title, goal ->
-            vm.createPlan(title, goal)
-            showCreatePlan = false
-        }
-    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun NexusTopBar(sending: Boolean, navLetter: String, onOpenSettings: () -> Unit, onHistory: () -> Unit, onNewChat: () -> Unit, onStop: () -> Unit, scrollBehavior: androidx.compose.material3.TopAppBarScrollBehavior, lastTokenUsage: TokenUsage? = null, showTerminal: Boolean = false, onTerminal: (() -> Unit)? = null, showPlanning: Boolean = false, onPlanning: (() -> Unit)? = null) {
+private fun NexusTopBar(sending: Boolean, navLetter: String, onOpenSettings: () -> Unit, onHistory: () -> Unit, onNewChat: () -> Unit, onStop: () -> Unit, scrollBehavior: androidx.compose.material3.TopAppBarScrollBehavior, lastTokenUsage: TokenUsage? = null, showTerminal: Boolean = false, onTerminal: (() -> Unit)? = null) {
     CenterAlignedTopAppBar(modifier = Modifier.statusBarsPadding(), scrollBehavior = scrollBehavior, title = {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -477,7 +450,6 @@ private fun NexusTopBar(sending: Boolean, navLetter: String, onOpenSettings: () 
         actions = { Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
             FilledTonalIconButton(onClick = onHistory) { Icon(Icons.Filled.History, contentDescription = stringResource(R.string.action_history)) }
             if (showTerminal) FilledTonalIconButton(onClick = { onTerminal?.invoke() }) { Icon(Icons.Filled.Code, contentDescription = stringResource(R.string.action_terminal)) }
-            if (showPlanning) FilledTonalIconButton(onClick = { onPlanning?.invoke() }) { Icon(Icons.Filled.CheckCircle, contentDescription = stringResource(R.string.action_planning)) }
             FilledTonalIconButton(onClick = onNewChat) { Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.action_new_chat)) }
             AnimatedVisibility(visible = sending) { FilledTonalIconButton(onClick = onStop, colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer)) { Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.action_stop)) } }
             Spacer(Modifier.width(4.dp))

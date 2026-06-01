@@ -21,7 +21,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -93,16 +92,9 @@ fun TerminalPanel(
             }
         }
 
-        val prootNotInstalled = prootState.status == ProotStatus.NOT_INSTALLED
-        if (prootNotInstalled && proot != null) {
-            Button(
-                onClick = { terminalScope.launch { proot.ensureInstalled() } },
-                modifier = Modifier.fillMaxWidth().padding(4.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = terminalGreen)
-            ) {
-                Icon(Icons.Filled.PlayArrow, null, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("Install Ubuntu", fontSize = 12.sp)
+        if (proot != null && prootState.status == ProotStatus.NOT_INSTALLED) {
+            LaunchedEffect(proot) {
+                proot.ensureInstalled()
             }
         }
 

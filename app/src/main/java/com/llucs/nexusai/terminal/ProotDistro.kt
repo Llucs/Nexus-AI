@@ -90,6 +90,11 @@ class ProotDistro(private val context: Context) {
                     }
                 }
                 outFile.setExecutable(true)
+                if (!outFile.canExecute()) {
+                    try {
+                        Runtime.getRuntime().exec("chmod 755 ${outFile.absolutePath}").waitFor()
+                    } catch (_: Exception) {}
+                }
             } catch (e: Exception) {
                 throw Exception("Failed to extract $assetPath: ${e.message}")
             }
@@ -196,9 +201,25 @@ class ProotDistro(private val context: Context) {
         return str.trim().toLongOrNull(8) ?: 0L
     }
 
+    suspend fun ensureProotExecutable(): Boolean = withContext(Dispatchers.IO) {
+        if (prootBin.exists() && !prootBin.canExecute()) {
+            prootBin.setExecutable(true)
+            if (!prootBin.canExecute()) {
+                try {
+                    val p = Runtime.getRuntime().exec("chmod 755 ${prootBin.absolutePath}")
+                    p.waitFor()
+                } catch (_: Exception) {}
+            }
+        }
+        prootBin.canExecute()
+    }
+
     suspend fun executeCommand(command: String): String = withContext(Dispatchers.IO) {
         if (_state.value.status != ProotStatus.READY) {
             return@withContext "Ubuntu not installed yet"
+        }
+        if (!ensureProotExecutable()) {
+            return@withContext "Command error: Cannot execute proot binary - permission denied"
         }
         try {
             val loaderDir = baseDir.absolutePath
