@@ -8,7 +8,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
-import java.io.RandomAccessFile
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -34,25 +33,6 @@ class ProotDistro(private val context: Context) {
     private val markerFile: File get() = File(baseDir, ".installed")
 
     companion object {
-        private val PROOT_DEB_URLS = mapOf(
-            "aarch64" to listOf(
-                "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.107.74_aarch64.deb",
-                "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.107.73_aarch64.deb"
-            ),
-            "arm" to listOf(
-                "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.107.74_arm.deb",
-                "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.107.73_arm.deb"
-            ),
-            "x86_64" to listOf(
-                "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.107.74_x86_64.deb",
-                "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.107.73_x86_64.deb"
-            ),
-            "i686" to listOf(
-                "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.107.74_i686.deb",
-                "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.107.73_i686.deb"
-            )
-        )
-
         private val ROOTFS_URLS = mapOf(
             "aarch64" to listOf(
                 "https://github.com/termux/proot-distro/releases/download/v4.29.0/ubuntu-plucky-aarch64-pd-v4.29.0.tar.xz",
@@ -68,21 +48,14 @@ class ProotDistro(private val context: Context) {
         )
     }
 
-    private fun getProotArch(): String {
+    private fun getArch(): String {
         val arch = System.getProperty("os.arch") ?: "aarch64"
         return when {
             arch.contains("aarch64") || arch.contains("arm64") -> "aarch64"
-            arch.contains("arm") -> "arm"
+            arch.contains("arm") -> "armhf"
             arch.contains("x86_64") || arch.contains("amd64") -> "x86_64"
-            arch.contains("x86") || arch.contains("i686") || arch.contains("i386") -> "i686"
             else -> "aarch64"
         }
-    }
-
-    private fun getUbuntuArch(prootArch: String): String = when (prootArch) {
-        "i686" -> "x86_64"
-        "arm" -> "armhf"
-        else -> prootArch
     }
 
     private fun urlExists(urlStr: String): Boolean {
@@ -124,50 +97,50 @@ class ProotDistro(private val context: Context) {
             baseDir.mkdirs()
             rootfsDir.mkdirs()
 
-            val prootArch = getProotArch()
-
-            _state.value = ProotState(ProotStatus.DOWNLOADING, 0.1f, "Downloading proot binary...")
-            onOutput?.invoke("Downloading proot binary...")
-
-            val debUrls = PROOT_DEB_URLS[prootArch] ?: PROOT_DEB_URLS["aarch64"]!!
-            val workingDebUrl = findWorkingUrl(debUrls)
-                ?: throw Exception("Nenhuma URL de proot respondeu. Verifique sua internet e tente novamente.")
-            val debFile = File(baseDir, "proot.deb")
-
-            downloadFile(workingDebUrl, debFile)
-            extractProotFromDeb(debFile, prootBin)
-            debFile.delete()
-            prootBin.setExecutable(true)
+            _state.value = ProotState(ProotStatus.DOWNLOADING, 0.1f, "Extracting proot binary...")
+            onOutput?.invoke("Extracting proot binary...")
+            extractProotFromAssets()
 
             if (!prootBin.exists()) {
-                throw Exception("Failed to extract proot binary from any source")
+                throw Exception("Failed to extract proot binary from assets")
             }
 
-            _state.value = ProotState(ProotStatus.INSTALLING, 0.3f, "Downloading Ubuntu rootfs...")
+            val arch = getArch()
+            val rootfsCandidates = ROOTFS_URLS[arch] ?: ROOTFS_URLS["aarch64"]!!
+
+            _state.value = ProotState(ProotStatus.INSTALLING, 0.3f, "Verifying Ubuntu rootfs URL...")
+            onOutput?.invoke("Verifying Ubuntu rootfs URL...")
+
+            val workingRootfsUrl = findWorkingUrl(rootfsCandidates)
+            if (workingRootfsUrl == null) {
+                throw Exception(
+                    "Nenhum servidor de rootfs respondeu. URLs testadas:\n" +
+                    rootfsCandidates.joinToString("\n") + "\n" +
+                    "Verifique sua conexao com internet."
+                )
+            }
+
+            _state.value = ProotState(ProotStatus.INSTALLING, 0.35f, "Downloading Ubuntu rootfs...")
             onOutput?.invoke("Downloading Ubuntu rootfs...")
 
-            val ubuntuArch = getUbuntuArch(prootArch)
-            val rootfsCandidates = ROOTFS_URLS[ubuntuArch] ?: ROOTFS_URLS["aarch64"]!!
-            val workingRootfsUrl = findWorkingUrl(rootfsCandidates)
-                ?: throw Exception("Nenhuma URL de rootfs Ubuntu respondeu. Verifique sua internet.")
             val rootfsArchive = File(baseDir, "ubuntu-rootfs.tar.xz")
-
             downloadFile(workingRootfsUrl, rootfsArchive, onProgress = { p ->
-                _state.value = ProotState(ProotStatus.INSTALLING, 0.3f + p * 0.5f, "Downloading Ubuntu rootfs...")
+                _state.value = ProotState(ProotStatus.INSTALLING, 0.35f + p * 0.45f, "Downloading Ubuntu rootfs...")
             })
+
+            if (!rootfsArchive.exists() || rootfsArchive.length() < 1024 * 1024) {
+                throw Exception("Rootfs download failed or file too small (${rootfsArchive.length()} bytes)")
+            }
 
             _state.value = ProotState(ProotStatus.INSTALLING, 0.8f, "Extracting rootfs...")
             onOutput?.invoke("Extracting rootfs...")
-            extractAnyTar(rootfsArchive, rootfsDir, stripComponents = 1)
+            extractRootfs(rootfsArchive, rootfsDir)
             rootfsArchive.delete()
 
             val resolvConf = File(rootfsDir, "etc/resolv.conf")
             resolvConf.parentFile?.mkdirs()
             resolvConf.writeText("nameserver 8.8.8.8\nnameserver 8.8.4.4\n")
             File(rootfsDir, "etc/hosts").writeText("127.0.0.1 localhost\n::1 localhost\n")
-
-            val fstab = File(rootfsDir, "etc/fstab")
-            if (!fstab.exists()) fstab.writeText("# Android fstab - not used\n")
 
             markerFile.createNewFile()
             _state.value = ProotState(ProotStatus.READY, 1f, "Ubuntu ready")
@@ -180,12 +153,38 @@ class ProotDistro(private val context: Context) {
         }
     }
 
+    private fun extractProotFromAssets() {
+        val assetManager = context.assets
+        val files = listOf("proot/proot", "proot/loader", "proot/loader32")
+        for (assetPath in files) {
+            val fileName = assetPath.substringAfterLast("/")
+            val outFile = File(baseDir, fileName)
+            try {
+                assetManager.open(assetPath).use { input ->
+                    FileOutputStream(outFile).use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                outFile.setExecutable(true)
+            } catch (e: Exception) {
+                throw Exception("Failed to extract $assetPath: ${e.message}")
+            }
+        }
+    }
+
     suspend fun executeCommand(command: String): String = withContext(Dispatchers.IO) {
         if (_state.value.status != ProotStatus.READY) {
             return@withContext "Ubuntu not installed yet"
         }
         try {
-            val pb = ProcessBuilder(
+            val loaderDir = baseDir.absolutePath
+            val env = mapOf(
+                "HOME" to "/root",
+                "TERM" to "xterm-256color",
+                "PATH" to "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "PROOT_LOADER_DIR" to loaderDir
+            )
+            val cmd = listOf(
                 prootBin.absolutePath,
                 "--link2symlink",
                 "-0",
@@ -201,9 +200,8 @@ class ProotDistro(private val context: Context) {
                 "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
                 "/bin/bash", "-c", command
             )
-            pb.environment()["HOME"] = "/root"
-            pb.environment()["TERM"] = "xterm-256color"
-            pb.environment()["PATH"] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+            val pb = ProcessBuilder(cmd)
+            pb.environment().putAll(env)
             val p = pb.start()
             val stdout = p.inputStream.bufferedReader().readText()
             val stderr = p.errorStream.bufferedReader().readText()
@@ -232,78 +230,26 @@ class ProotDistro(private val context: Context) {
         if (ok) ProotStatus.READY else _state.value.status
     }
 
-    private fun extractProotFromDeb(debFile: File, outputFile: File) {
-        val tmpDir = File(baseDir, "deb_extract")
-        tmpDir.mkdirs()
-
-        try {
-            val raf = RandomAccessFile(debFile, "r")
-            val magic = ByteArray(8)
-            raf.readFully(magic)
-            val magicStr = String(magic, Charsets.US_ASCII)
-            if (magicStr != "!<arch>\n") throw Exception("Not a valid deb archive")
-
-            while (raf.filePointer < raf.length()) {
-                val hdr = ByteArray(60)
-                raf.readFully(hdr)
-                val name = String(hdr, 0, 16, Charsets.US_ASCII).trim()
-                val sizeStr = String(hdr, 48, 10, Charsets.US_ASCII).trim()
-                val size = sizeStr.toLongOrNull() ?: 0L
-                val padded = size + (size % 2L)
-
-                if (name.startsWith("data.tar")) {
-                    val dataBytes = ByteArray(size.toInt())
-                    raf.readFully(dataBytes)
-                    val tarFile = File(tmpDir, name)
-                    FileOutputStream(tarFile).use { it.write(dataBytes) }
-                    extractAnyTar(tarFile, tmpDir)
-                    tarFile.delete()
-
-                    val found = findProotBinary(tmpDir)
-                    if (found != null) {
-                        found.copyTo(outputFile, overwrite = true)
-                        raf.close()
-                        return
-                    }
-                }
-
-                raf.skipBytes(padded.toInt())
-            }
-            raf.close()
-            throw Exception("data.tar not found in deb")
-        } finally {
-            tmpDir.deleteRecursively()
-        }
-    }
-
-    private fun findProotBinary(dir: File): File? {
-        val files = dir.walkTopDown().filter { it.name == "proot" && it.isFile }.toList()
-        if (files.isNotEmpty()) return files.first()
-        val altFiles = dir.walkTopDown().filter { it.name.contains("proot") && it.isFile }.toList()
-        if (altFiles.isNotEmpty()) return altFiles.first()
-        return null
-    }
-
-    private fun extractAnyTar(archive: File, dest: File, stripComponents: Int = 0) {
+    private fun extractRootfs(archive: File, dest: File) {
         val name = archive.name
         val cmd = mutableListOf<String>()
         when {
-            name.endsWith(".xz") -> { cmd.addAll(listOf("tar", "-xJf")) }
-            name.endsWith(".gz") || name.endsWith(".gzip") -> { cmd.addAll(listOf("tar", "-xzf")) }
-            name.endsWith(".zst") || name.endsWith(".zstd") -> { cmd.addAll(listOf("tar", "--zstd", "-xf")) }
-            else -> { cmd.addAll(listOf("tar", "-xf")) }
+            name.endsWith(".xz") -> cmd.addAll(listOf("tar", "-xJf"))
+            name.endsWith(".gz") -> cmd.addAll(listOf("tar", "-xzf"))
+            else -> cmd.addAll(listOf("tar", "-xf"))
         }
         cmd.add(archive.absolutePath)
         cmd.add("-C")
         cmd.add(dest.absolutePath)
-        if (stripComponents > 0) {
-            cmd.add("--strip-components=$stripComponents")
-        }
+        cmd.add("--strip-components=1")
         val pb = ProcessBuilder(cmd)
         pb.redirectErrorStream(true)
         val p = pb.start()
-        p.inputStream.bufferedReader().readText()
-        p.waitFor(60, java.util.concurrent.TimeUnit.SECONDS)
+        val out = p.inputStream.bufferedReader().readText()
+        p.waitFor(120, java.util.concurrent.TimeUnit.SECONDS)
+        if (p.exitValue() != 0) {
+            throw Exception("tar extraction failed: $out")
+        }
     }
 
     private fun downloadFile(urlStr: String, target: File, onProgress: ((Float) -> Unit)? = null) {
