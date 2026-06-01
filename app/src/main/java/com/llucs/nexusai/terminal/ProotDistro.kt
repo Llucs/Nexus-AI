@@ -8,7 +8,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
+import java.io.InputStream
 import java.util.zip.GZIPInputStream
+import java.util.zip.ZipFile
 
 enum class ProotStatus {
     NOT_INSTALLED, DOWNLOADING, INSTALLING, READY, ERROR
@@ -95,23 +97,24 @@ class ProotDistro(private val context: Context) {
     }
 
     private fun extractRootfsFromAssets() {
-        val assetManager = context.assets
-        val archiveFile = File(baseDir, "ubuntu-rootfs.tar.gz")
+        val apkPath = context.applicationInfo.sourceDir
+        val entryPath = "assets/rootfs/ubuntu-rootfs.tar.gz"
         try {
-            assetManager.open("rootfs/ubuntu-rootfs.tar.gz").use { input ->
-                FileOutputStream(archiveFile).use { output ->
-                    input.copyTo(output)
+            ZipFile(apkPath).use { zip ->
+                val entry = zip.getEntry(entryPath)
+                    ?: throw Exception("Rootfs entry not found in APK: $entryPath")
+                zip.getInputStream(entry).use { input ->
+                    extractTarGz(input, rootfsDir)
                 }
             }
         } catch (e: Exception) {
-            throw Exception("Failed to copy rootfs archive from assets: ${e.message}")
+            throw Exception("Failed to extract rootfs from APK: ${e.message}")
         }
-        extractTarGz(archiveFile, rootfsDir)
-        archiveFile.delete()
+        rootfsDir.setReadable(true, false)
     }
 
-    private fun extractTarGz(archive: File, dest: File) {
-        GZIPInputStream(archive.inputStream()).use { gz ->
+    private fun extractTarGz(input: InputStream, dest: File) {
+        GZIPInputStream(input).use { gz ->
             val buffer = ByteArray(8192)
             var inTar = false
             var currentFile: File? = null
