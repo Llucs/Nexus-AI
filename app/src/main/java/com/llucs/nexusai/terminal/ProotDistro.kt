@@ -8,8 +8,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
-import java.net.HttpURLConnection
-import java.net.URL
+import java.util.zip.GZIPInputStream
 
 enum class ProotStatus {
     NOT_INSTALLED, DOWNLOADING, INSTALLING, READY, ERROR
@@ -32,55 +31,6 @@ class ProotDistro(private val context: Context) {
     val rootfsDir: File get() = File(baseDir, "rootfs")
     private val markerFile: File get() = File(baseDir, ".installed")
 
-    companion object {
-        private val ROOTFS_URLS = mapOf(
-            "aarch64" to listOf(
-                "https://github.com/termux/proot-distro/releases/download/v4.29.0/ubuntu-plucky-aarch64-pd-v4.29.0.tar.xz",
-                "https://github.com/termux/proot-distro/releases/download/v4.28.0/ubuntu-plucky-aarch64-pd-v4.28.0.tar.xz"
-            ),
-            "x86_64" to listOf(
-                "https://github.com/termux/proot-distro/releases/download/v4.29.0/ubuntu-plucky-x86_64-pd-v4.29.0.tar.xz",
-                "https://github.com/termux/proot-distro/releases/download/v4.28.0/ubuntu-plucky-x86_64-pd-v4.28.0.tar.xz"
-            ),
-            "armhf" to listOf(
-                "https://github.com/termux/proot-distro/releases/download/v4.29.0/ubuntu-plucky-armhf-pd-v4.29.0.tar.xz"
-            )
-        )
-    }
-
-    private fun getArch(): String {
-        val arch = System.getProperty("os.arch") ?: "aarch64"
-        return when {
-            arch.contains("aarch64") || arch.contains("arm64") -> "aarch64"
-            arch.contains("arm") -> "armhf"
-            arch.contains("x86_64") || arch.contains("amd64") -> "x86_64"
-            else -> "aarch64"
-        }
-    }
-
-    private fun urlExists(urlStr: String): Boolean {
-        return try {
-            val url = URL(urlStr)
-            val conn = url.openConnection() as HttpURLConnection
-            conn.requestMethod = "HEAD"
-            conn.instanceFollowRedirects = true
-            conn.connectTimeout = 10000
-            conn.readTimeout = 5000
-            val code = conn.responseCode
-            conn.disconnect()
-            code in 200..399
-        } catch (_: Exception) {
-            false
-        }
-    }
-
-    private fun findWorkingUrl(urls: List<String>): String? {
-        for (url in urls) {
-            if (urlExists(url)) return url
-        }
-        return null
-    }
-
     suspend fun checkStatus(): ProotStatus = withContext(Dispatchers.IO) {
         if (markerFile.exists() && rootfsDir.isDirectory && rootfsDir.list()?.isNotEmpty() == true && prootBin.exists()) {
             _state.value = ProotState(status = ProotStatus.READY)
@@ -93,49 +43,21 @@ class ProotDistro(private val context: Context) {
 
     suspend fun install(onOutput: ((String) -> Unit)? = null): Boolean = withContext(Dispatchers.IO) {
         try {
-            _state.value = ProotState(ProotStatus.DOWNLOADING, 0f, "Creating directories...")
+            _state.value = ProotState(ProotStatus.INSTALLING, 0f, "Creating directories...")
             baseDir.mkdirs()
             rootfsDir.mkdirs()
 
-            _state.value = ProotState(ProotStatus.DOWNLOADING, 0.1f, "Extracting proot binary...")
-            onOutput?.invoke("Extracting proot binary...")
+            _state.value = ProotState(ProotStatus.INSTALLING, 0.1f, "Extracting proot binaries...")
+            onOutput?.invoke("Extracting proot binaries...")
             extractProotFromAssets()
 
             if (!prootBin.exists()) {
                 throw Exception("Failed to extract proot binary from assets")
             }
 
-            val arch = getArch()
-            val rootfsCandidates = ROOTFS_URLS[arch] ?: ROOTFS_URLS["aarch64"]!!
-
-            _state.value = ProotState(ProotStatus.INSTALLING, 0.3f, "Verifying Ubuntu rootfs URL...")
-            onOutput?.invoke("Verifying Ubuntu rootfs URL...")
-
-            val workingRootfsUrl = findWorkingUrl(rootfsCandidates)
-            if (workingRootfsUrl == null) {
-                throw Exception(
-                    "Nenhum servidor de rootfs respondeu. URLs testadas:\n" +
-                    rootfsCandidates.joinToString("\n") + "\n" +
-                    "Verifique sua conexao com internet."
-                )
-            }
-
-            _state.value = ProotState(ProotStatus.INSTALLING, 0.35f, "Downloading Ubuntu rootfs...")
-            onOutput?.invoke("Downloading Ubuntu rootfs...")
-
-            val rootfsArchive = File(baseDir, "ubuntu-rootfs.tar.xz")
-            downloadFile(workingRootfsUrl, rootfsArchive, onProgress = { p ->
-                _state.value = ProotState(ProotStatus.INSTALLING, 0.35f + p * 0.45f, "Downloading Ubuntu rootfs...")
-            })
-
-            if (!rootfsArchive.exists() || rootfsArchive.length() < 1024 * 1024) {
-                throw Exception("Rootfs download failed or file too small (${rootfsArchive.length()} bytes)")
-            }
-
-            _state.value = ProotState(ProotStatus.INSTALLING, 0.8f, "Extracting rootfs...")
-            onOutput?.invoke("Extracting rootfs...")
-            extractRootfs(rootfsArchive, rootfsDir)
-            rootfsArchive.delete()
+            _state.value = ProotState(ProotStatus.INSTALLING, 0.2f, "Extracting Ubuntu rootfs...")
+            onOutput?.invoke("Extracting Ubuntu rootfs (~84MB)...")
+            extractRootfsFromAssets()
 
             val resolvConf = File(rootfsDir, "etc/resolv.conf")
             resolvConf.parentFile?.mkdirs()
@@ -170,6 +92,113 @@ class ProotDistro(private val context: Context) {
                 throw Exception("Failed to extract $assetPath: ${e.message}")
             }
         }
+    }
+
+    private fun extractRootfsFromAssets() {
+        val assetManager = context.assets
+        val archiveFile = File(baseDir, "ubuntu-rootfs.tar.gz")
+        try {
+            assetManager.open("rootfs/ubuntu-rootfs.tar.gz").use { input ->
+                FileOutputStream(archiveFile).use { output ->
+                    input.copyTo(output)
+                }
+            }
+        } catch (e: Exception) {
+            throw Exception("Failed to copy rootfs archive from assets: ${e.message}")
+        }
+        extractTarGz(archiveFile, rootfsDir)
+        archiveFile.delete()
+    }
+
+    private fun extractTarGz(archive: File, dest: File) {
+        GZIPInputStream(archive.inputStream()).use { gz ->
+            val buffer = ByteArray(8192)
+            var inTar = false
+            var currentFile: File? = null
+            var currentOut: FileOutputStream? = null
+            var remaining = 0L
+
+            while (true) {
+                if (!inTar) {
+                    val header = ByteArray(512)
+                    val bytesRead = gz.read(header, 0, 512)
+                    if (bytesRead < 512) break
+
+                    if (header.all { it == 0.toByte() }) break
+
+                    val name = extractTarString(header, 0, 100) ?: break
+                    if (name.isEmpty()) continue
+
+                    val size = extractTarOctal(header, 124, 12)
+                    val type = header[156].toInt()
+
+                    val entryName = if (name.endsWith("/")) name.dropLast(1) else name
+                    val targetFile = File(dest, entryName)
+
+                    if (type == '5'.code.toByte()) {
+                        targetFile.mkdirs()
+                        remaining = 0
+                    } else {
+                        targetFile.parentFile?.mkdirs()
+                        currentFile = targetFile
+                        currentOut = FileOutputStream(targetFile)
+                        remaining = size
+                        inTar = true
+                    }
+
+                    val padded = (size + 511) / 512 * 512
+                    val skip = padded - size
+                    if (skip > 0) {
+                        var skipped = 0L
+                        while (skipped < skip) {
+                            val s = gz.skip(skip - skipped)
+                            if (s <= 0) break
+                            skipped += s
+                        }
+                    }
+                } else {
+                    val toRead = minOf(remaining.toInt(), buffer.size)
+                    val bytesRead = gz.read(buffer, 0, toRead)
+                    if (bytesRead <= 0) {
+                        inTar = false
+                        currentOut?.close()
+                        currentFile?.setExecutable(currentFile!!.name == "proot")
+                        currentOut = null
+                        currentFile = null
+                        continue
+                    }
+                    currentOut?.write(buffer, 0, bytesRead)
+                    remaining -= bytesRead
+                    if (remaining <= 0) {
+                        inTar = false
+                        currentOut?.close()
+                        currentFile?.setExecutable(currentFile!!.name == "proot")
+                        currentOut = null
+                        currentFile = null
+                    }
+                }
+            }
+            currentOut?.close()
+        }
+    }
+
+    private fun extractTarString(data: ByteArray, offset: Int, maxLen: Int): String? {
+        val end = data.indexOf(0, offset)
+        return if (end in offset..<offset + maxLen) {
+            data.sliceArray(offset..<end).decodeToString()
+        } else {
+            null
+        }
+    }
+
+    private fun extractTarOctal(data: ByteArray, offset: Int, maxLen: Int): Long {
+        val end = data.indexOf(0, offset)
+        val str = if (end in offset..<offset + maxLen) {
+            data.sliceArray(offset..<end).decodeToString()
+        } else {
+            data.sliceArray(offset..<offset + maxLen).decodeToString()
+        }
+        return str.trim().toLongOrNull(8) ?: 0L
     }
 
     suspend fun executeCommand(command: String): String = withContext(Dispatchers.IO) {
@@ -228,50 +257,6 @@ class ProotDistro(private val context: Context) {
         if (status == ProotStatus.READY) return@withContext ProotStatus.READY
         val ok = install(onOutput)
         if (ok) ProotStatus.READY else _state.value.status
-    }
-
-    private fun extractRootfs(archive: File, dest: File) {
-        val name = archive.name
-        val cmd = mutableListOf<String>()
-        when {
-            name.endsWith(".xz") -> cmd.addAll(listOf("tar", "-xJf"))
-            name.endsWith(".gz") -> cmd.addAll(listOf("tar", "-xzf"))
-            else -> cmd.addAll(listOf("tar", "-xf"))
-        }
-        cmd.add(archive.absolutePath)
-        cmd.add("-C")
-        cmd.add(dest.absolutePath)
-        cmd.add("--strip-components=1")
-        val pb = ProcessBuilder(cmd)
-        pb.redirectErrorStream(true)
-        val p = pb.start()
-        val out = p.inputStream.bufferedReader().readText()
-        p.waitFor(120, java.util.concurrent.TimeUnit.SECONDS)
-        if (p.exitValue() != 0) {
-            throw Exception("tar extraction failed: $out")
-        }
-    }
-
-    private fun downloadFile(urlStr: String, target: File, onProgress: ((Float) -> Unit)? = null) {
-        val url = URL(urlStr)
-        val conn = url.openConnection()
-        conn.connectTimeout = 15000
-        conn.readTimeout = 120000
-        val totalBytes = conn.contentLengthLong
-        val input = conn.getInputStream()
-        val output = FileOutputStream(target)
-        val buffer = ByteArray(8192)
-        var bytesRead: Int
-        var totalRead = 0L
-        while (input.read(buffer).also { bytesRead = it } != -1) {
-            output.write(buffer, 0, bytesRead)
-            totalRead += bytesRead
-            if (totalBytes > 0) {
-                onProgress?.invoke(totalRead.toFloat() / totalBytes)
-            }
-        }
-        output.close()
-        input.close()
     }
 
     fun getRootfsDirectory(): File = rootfsDir
