@@ -22,10 +22,23 @@ android {
 
     buildFeatures {
         compose true
+        buildConfig true
     }
 
     composeOptions {
         kotlinCompilerExtensionVersion '1.5.14'
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            minifyEnabled false
+            applicationIdSuffix '.debug'
+        }
     }
 
     kotlin {
@@ -34,8 +47,21 @@ android {
 
     kotlinOptions {
         allWarningsAsErrors = false
-
         jvmTarget = '17'
+        freeCompilerArgs += [
+            "-opt-in=kotlin.RequiresOptIn",
+            "-Xcontext-receivers"
+        ]
+    }
+
+    aaptOptions {
+        noCompress += ".tgz"
+    }
+
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
     }
 }
 

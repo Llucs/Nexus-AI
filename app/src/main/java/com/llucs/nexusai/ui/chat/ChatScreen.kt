@@ -39,6 +39,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -50,7 +51,9 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.History
@@ -128,13 +131,23 @@ import com.llucs.nexusai.data.ChatStore
 import com.llucs.nexusai.data.MemoryStore
 import com.llucs.nexusai.data.StoredChat
 import com.llucs.nexusai.data.UserPrefs
+import com.llucs.nexusai.files.FileTransfer
+import com.llucs.nexusai.planning.Plan
+import com.llucs.nexusai.planning.PlanCard
+import com.llucs.nexusai.planning.PlanningStore
+import com.llucs.nexusai.planning.TaskStatus
 import com.llucs.nexusai.splitMarkdown
+import com.llucs.nexusai.terminal.ProotDistro
+import com.llucs.nexusai.terminal.TerminalPanel
+import com.llucs.nexusai.terminal.TerminalSession
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
     store: ChatStore, prefs: UserPrefs, memoryStore: MemoryStore,
+    planningStore: PlanningStore?, fileTransfer: FileTransfer?,
+    terminalSession: TerminalSession?, prootDistro: ProotDistro?,
     userName: String, languageCode: String,
     onEditName: () -> Unit, onChangeLanguage: (String) -> Unit,
     sourceUrl: String = "https://github.com/Llucs/Nexus-AI"
@@ -164,6 +177,11 @@ fun ChatScreen(
     var memories by remember { mutableStateOf<List<String>>(emptyList()) }
     var showMemoriesManager by rememberSaveable { mutableStateOf(false) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
+    var terminalEnabled by rememberSaveable { mutableStateOf(false) }
+    var showTerminal by rememberSaveable { mutableStateOf(false) }
+    var fileAccessEnabled by rememberSaveable { mutableStateOf(false) }
+
+    val hasTerminal = terminalSession != null
 
     val navLetter = userName.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "N"
     val trimmedName = userName.trim()
@@ -217,19 +235,53 @@ fun ChatScreen(
         }
     }
 
-    val systemPrompt = when (locale) {
-        "pt" -> "Oi! Eu sou o Nexus AI.\n\n$nameHint\n\n$appIdentity\n\n${if (memoriesBlock.isNotBlank()) memoriesBlock + "\n\n" else ""}$memorySaveRules\n\nRegras do Nexus:\n- Fale claro e simples.\n- V\u00e1 direto ao ponto.\n- N\u00e3o junte palavras, letras e n\u00fameros; mantenha espa\u00e7amento normal.\n- Use Markdown bem formatado quando ajudar.\n- Se eu n\u00e3o souber algo, eu vou falar e sugerir alternativas."
-        "es" -> "\u00a1Hola! Soy Nexus AI.\n\n$nameHint\n\n$appIdentity\n\n${if (memoriesBlock.isNotBlank()) memoriesBlock + "\n\n" else ""}$memorySaveRules\n\nReglas:\n- Habla claro y simple.\n- Ve directo al punto.\n- No juntes palabras, letras y n\u00fameros; mant\u00e9n el espaciado normal.\n- Usa Markdown bien formateado cuando ayude.\n- Si no s\u00e9 algo, lo dir\u00e9 y sugerir\u00e9 alternativas."
-        "ru" -> "\u041f\u0440\u0438\u0432\u0435\u0442! \u042f Nexus AI.\n\n$nameHint\n\n$appIdentity\n\n${if (memoriesBlock.isNotBlank()) memoriesBlock + "\n\n" else ""}$memorySaveRules\n\n\u041f\u0440\u0430\u0432\u0438\u043b\u0430:\n- \u041f\u0438\u0448\u0438 \u044f\u0441\u043d\u043e \u0438 \u043f\u0440\u043e\u0441\u0442\u043e.\n- \u0421\u0440\u0430\u0437\u0443 \u043a \u0434\u0435\u043b\u0443.\n- \u0418\u0441\u043f\u043e\u043b\u044c\u0437\u0443\u0439 \u0430\u043a\u043a\u0443\u0440\u0430\u0442\u043d\u044b\u0439 Markdown, \u043a\u043e\u0433\u0434\u0430 \u044d\u0442\u043e \u043f\u043e\u043c\u043e\u0433\u0430\u0435\u0442.\n- \u0415\u0441\u043b\u0438 \u044f \u0447\u0435\u0433\u043e-\u0442\u043e \u043d\u0435 \u0437\u043d\u0430\u044e, \u044f \u0441\u043a\u0430\u0436\u0443 \u0438 \u043f\u0440\u0435\u0434\u043b\u043e\u0436\u0443 \u0432\u0430\u0440\u0438\u0430\u043d\u0442\u044b."
-        else -> "Hi! I'm Nexus AI.\n\n$nameHint\n\n$appIdentity\n\n${if (memoriesBlock.isNotBlank()) memoriesBlock + "\n\n" else ""}$memorySaveRules\n\nRules:\n- Speak clearly and keep it simple.\n- Go straight to the point.\n- Don't glue words, letters, and numbers together.\n- Use well-formatted Markdown when helpful.\n- If I don't know something, I'll say so and suggest alternatives."
+    val antiHallucinationRules = when (locale) {
+        "pt" -> "\n\nREGRAS ABSOLUTAS (NUNCA VIOLAR):\n- NUNCA finja ou simule a\u00e7\u00f5es. NUNCA diga que executou um comando se n\u00e3o usou <<TERMINAL_EXEC>>.\n- NUNCA invente outputs de comandos. Se o comando falhar, mostre o erro exato que recebeu.\n- NUNCA pe\u00e7a para o usu\u00e1rio instalar algo. O app j\u00e1 cuida disso.\n- NUNCA fale sobre \"instalar Ubuntu\" ou \"instalar proot\" para o usu\u00e1rio.\n- Se n\u00e3o puder fazer algo, diga honestamente \"N\u00e3o consigo fazer isso\" e pare.\n- NUNCA minta. NUNCA simule. Prefira dizer \"n\u00e3o sei\" ou \"n\u00e3o consigo\" a inventar.\n- Seja um AGENTE AUT\u00d4NOMO: planeje, execute, observe, analise, corrija, repita."
+        "es" -> "\n\nREGLAS ABSOLUTAS (NUNCA VIOLAR):\n- NUNCA finjas o simules acciones. NUNCA digas que ejecutaste un comando si no usaste <<TERMINAL_EXEC>>.\n- NUNCA inventes salidas de comandos. Si el comando falla, muestra el error exacto.\n- NUNCA le pidas al usuario instalar nada. La app ya se encarga.\n- NUNCA hables sobre \"instalar Ubuntu\" o \"instalar proot\" al usuario.\n- Si no puedes hacer algo, di honestamente \"No puedo hacerlo\" y para.\n- NUNCA mientas. NUNCA simules.\n- S\u00e9 un AGENTE AUT\u00d3NOMO: planifica, ejecuta, observa, analiza, corrige, repite."
+        else -> "\n\nABSOLUTE RULES (NEVER VIOLATE):\n- NEVER fake or simulate actions. NEVER say you ran a command without using <<TERMINAL_EXEC>>.\n- NEVER invent command outputs. If the command fails, show the exact error.\n- NEVER ask the user to install anything. The app handles that.\n- NEVER talk about \"installing Ubuntu\" or \"installing proot\" to the user.\n- If you cannot do something, honestly say \"I can't do that\" and stop.\n- NEVER lie. NEVER simulate.\n- Be an AUTONOMOUS AGENT: plan, execute, observe, analyze, correct, repeat."
     }
 
-    val finalSystemPrompt = if (hasName) systemPrompt + "\n\n" + when (locale) {
+    val systemPrompt = when (locale) {
+        "pt" -> "Oi! Eu sou o Nexus AI.\n\n$nameHint\n\n$appIdentity\n\n${if (memoriesBlock.isNotBlank()) memoriesBlock + "\n\n" else ""}$memorySaveRules\n\nRegras do Nexus:\n- Fale claro e simples.\n- V\u00e1 direto ao ponto.\n- N\u00e3o junte palavras, letras e n\u00fameros; mantenha espa\u00e7amento normal.\n- Use Markdown bem formatado quando ajudar.\n- Se eu n\u00e3o souber algo, eu vou falar e sugerir alternativas.$antiHallucinationRules"
+        "es" -> "\u00a1Hola! Soy Nexus AI.\n\n$nameHint\n\n$appIdentity\n\n${if (memoriesBlock.isNotBlank()) memoriesBlock + "\n\n" else ""}$memorySaveRules\n\nReglas:\n- Habla claro y simple.\n- Ve directo al punto.\n- No juntes palabras, letras y n\u00fameros; mant\u00e9n el espaciado normal.\n- Usa Markdown bien formateado cuando ayude.\n- Si no s\u00e9 algo, lo dir\u00e9 y sugerir\u00e9 alternativas.$antiHallucinationRules"
+        "ru" -> "\u041f\u0440\u0438\u0432\u0435\u0442! \u042f Nexus AI.\n\n$nameHint\n\n$appIdentity\n\n${if (memoriesBlock.isNotBlank()) memoriesBlock + "\n\n" else ""}$memorySaveRules\n\n\u041f\u0440\u0430\u0432\u0438\u043b\u0430:\n- \u041f\u0438\u0448\u0438 \u044f\u0441\u043d\u043e \u0438 \u043f\u0440\u043e\u0441\u0442\u043e.\n- \u0421\u0440\u0430\u0437\u0443 \u043a \u0434\u0435\u043b\u0443.\n- \u0418\u0441\u043f\u043e\u043b\u044c\u0437\u0443\u0439 \u0430\u043a\u043a\u0443\u0440\u0430\u0442\u043d\u044b\u0439 Markdown, \u043a\u043e\u0433\u0434\u0430 \u044d\u0442\u043e \u043f\u043e\u043c\u043e\u0433\u0430\u0435\u0442.\n- \u0415\u0441\u043b\u0438 \u044f \u0447\u0435\u0433\u043e-\u0442\u043e \u043d\u0435 \u0437\u043d\u0430\u044e, \u044f \u0441\u043a\u0430\u0436\u0443 \u0438 \u043f\u0440\u0435\u0434\u043b\u043e\u0436\u0443 \u0432\u0430\u0440\u0438\u0430\u043d\u0442\u044b.$antiHallucinationRules"
+        else -> "Hi! I'm Nexus AI.\n\n$nameHint\n\n$appIdentity\n\n${if (memoriesBlock.isNotBlank()) memoriesBlock + "\n\n" else ""}$memorySaveRules\n\nRules:\n- Speak clearly and keep it simple.\n- Go straight to the point.\n- Don't glue words, letters, and numbers together.\n- Use well-formatted Markdown when helpful.\n- If I don't know something, I'll say so and suggest alternatives.$antiHallucinationRules"
+    }
+
+    val terminalDisabledPrompt = if (!terminalEnabled && hasTerminal) when (locale) {
+        "pt" -> "\n\n\u26A0\uFE0F TERMINAL DA IA EST\u00c1 DESATIVADO: Voc\u00ea N\u00c3O tem acesso ao terminal Linux. N\u00c3O use <<TERMINAL_EXEC>>. N\u00c3O finja executar comandos. Se precisar do terminal, pe\u00e7a para o usu\u00e1rio ativar em Configura\u00e7\u00f5es."
+        "es" -> "\n\n\u26A0\uFE0F TERMINAL DE IA EST\u00c1 DESACTIVADO: NO tienes acceso al terminal Linux. NO uses <<TERMINAL_EXEC>>. NO finjas ejecutar comandos."
+        else -> "\n\n\u26A0\uFE0F AI TERMINAL IS DISABLED: You do NOT have terminal access. DO NOT use <<TERMINAL_EXEC>>. DO NOT pretend to run commands. Ask the user to enable it in Settings if needed."
+    } else ""
+
+    val terminalSystemPrompt = if (terminalEnabled && hasTerminal) when (locale) {
+        "pt" -> "\n\nVoc\u00ea TEM acesso ao terminal Ubuntu via PRoot.\n\nFerramentas dispon\u00edveis:\n1. <<TERMINAL_EXEC: cmd=comando;timeout=60000>> - Execute qualquer comando Linux (bash, python3, apt, git, etc)\n2. <<FILE_SEND: name=caminho;content=conte\u00fado>> - Crie/escreva arquivos\n3. <<FILE_SHARE: name=caminho>> - Compartilhe arquivos criados\n4. <<PLAN: title=T\u00edtulo;goal=Objetivo;tasks=Tarefa 1|Tarefa 2>> - Crie planos\n5. <<TASK_DONE: descri\u00e7\u00e3o>> - Marque tarefas como conclu\u00eddas\n\nFORMATO DE AGENTE AUT\u00d4NOMO:\nSempre que receber uma tarefa, siga este fluxo:\n\nPASSO 1 - PLANEJAR:\nExplique seu plano. Use <<PLAN>> para criar um plano com checklist.\n\nPASSO 2 - EXECUTAR:\nExecute comandos um de cada vez com <<TERMINAL_EXEC>>. Comece sempre testando o ambiente:\n<<TERMINAL_EXEC: cmd=which python3 git node>>\n<<TERMINAL_EXEC: cmd=python3 --version>>\n\nPASSO 3 - OBSERVAR:\nLeia a sa\u00edda real do comando. NUNCA invente resultados.\n\nPASSO 4 - ANALISAR:\nSe o comando falhou, leia o erro. Se faltam ferramentas, instale:\n<<TERMINAL_EXEC: cmd=apt-get update -qq && apt-get install -y -qq python3-pip>>\n\nPASSO 5 - CORRIGIR E REPETIR:\nSe houver erro, corrija e tente novamente. Continue at\u00e9 completar.\n\nREGRAS ABSOLUTAS:\n- NUNCA use placeholder em vez de comando real\n- NUNCA invente sa\u00eddas de comandos\n- NUNCA diga que algo existe sem testar primeiro com which/--version\n- NUNCA pe\u00e7a para o usu\u00e1rio instalar nada - use apt-get install\n- Sempre mostre a sa\u00edda real dos comandos\n- Se algo falhar 3 vezes, pare e explique o problema"
+        "es" -> "\n\nTIENES acceso al terminal Ubuntu via PRoot.\n\nHerramientas:\n1. <<TERMINAL_EXEC: cmd=comando;timeout=60000>> - Ejecuta cualquier comando Linux\n2. <<FILE_SEND: name=archivo;content=contenido>> - Crea/escribe archivos\n3. <<FILE_SHARE: name=archivo>> - Comparte archivos\n4. <<PLAN: title=T\u00edtulo;goal=Objetivo;tasks=Tarea 1|Tarea 2>> - Crea planes\n5. <<TASK_DONE: descripci\u00f3n>> - Marca tareas completadas\n\nFORMATO DE AGENTE AUT\u00d3NOMO:\nPASO 1 - PLANIFICAR: Explica tu plan. Usa <<PLAN>> para crear checklist.\nPASO 2 - EJECUTAR: Comandos uno por uno con <<TERMINAL_EXEC>>.\nPASO 3 - OBSERVAR: Lee la salida real. NUNCA inventes resultados.\nPASO 4 - ANALIZAR: Si fall\u00f3, lee el error. Si falta algo, instala.\nPASO 5 - CORREGIR Y REPETIR: Corrige errores y reintenta hasta completar.\n\nREGLAS: Sin placeholders, sin simulaciones, sin pedir al usuario que instale nada."
+        else -> "\n\nYou HAVE access to the Ubuntu terminal via PRoot.\n\nAvailable tools:\n1. <<TERMINAL_EXEC: cmd=command;timeout=60000>> - Execute any Linux command (bash, python3, apt, git, etc)\n2. <<FILE_SEND: name=path;content=data>> - Create/write files\n3. <<FILE_SHARE: name=path>> - Share created files\n4. <<PLAN: title=Title;goal=Goal;tasks=Task 1|Task 2>> - Create step-by-step plans\n5. <<TASK_DONE: description>> - Mark tasks as done\n\nAUTONOMOUS AGENT WORKFLOW:\nWhen given a task, ALWAYS follow this loop:\n\nSTEP 1 - PLAN:\nExplain your approach. Create a plan with <<PLAN>> for multi-step tasks.\n\nSTEP 2 - EXECUTE:\nRun commands one at a time. First, always test the environment:\n<<TERMINAL_EXEC: cmd=which python3 git node>>\n<<TERMINAL_EXEC: cmd=python3 --version>>\n\nSTEP 3 - OBSERVE:\nRead the REAL output. NEVER invent or simulate results.\n\nSTEP 4 - ANALYZE:\nIf a command fails, read the error. If tools are missing, install them:\n<<TERMINAL_EXEC: cmd=apt-get update -qq && apt-get install -y -qq python3-pip>>\n\nSTEP 5 - CORRECT & REPEAT:\nFix errors and retry. Loop until the task is complete.\n\nABSOLUTE RULES:\n- NEVER use placeholder text instead of a real command\n- NEVER invent command outputs\n- NEVER claim something exists without testing first with which/--version\n- NEVER ask the user to install anything - use apt-get install\n- Always show real command outputs\n- If something fails 3 times, stop and explain the problem honestly"
+    } else ""
+    val fileAccessDisabledPrompt = if (!fileAccessEnabled) when (locale) {
+        "pt" -> "\n\n\u26A0\uFE0F ACESSO A ARQUIVOS DESATIVADO: Voc\u00ea N\u00c3O pode criar, salvar ou compartilhar arquivos. N\u00c3O use <<FILE_SEND>> ou <<FILE_SHARE>>."
+        "es" -> "\n\n\u26A0\uFE0F ACCESO A ARCHIVOS DESACTIVADO: NO puedes crear, guardar o compartir archivos. NO uses <<FILE_SEND>> o <<FILE_SHARE>>."
+        else -> "\n\n\u26A0\uFE0F FILE ACCESS DISABLED: You CANNOT create, save, or share files. DO NOT use <<FILE_SEND>> or <<FILE_SHARE>>."
+    } else ""
+
+    val fileSystemPrompt = if (fileAccessEnabled) when (locale) {
+        "pt" -> "\n\nVoc\u00ea pode criar arquivos com <<FILE_SEND: name=arquivo.txt;content=texto>>. Compartilhe com <<FILE_SHARE: name=arquivo.txt>>."
+        "es" -> "\n\nPuedes crear archivos con <<FILE_SEND: name=archivo.txt;content=texto>>. Comparte con <<FILE_SHARE: name=archivo.txt>>."
+        else -> "\n\nYou can create files with <<FILE_SEND: name=file.txt;content=text>>. Share with <<FILE_SHARE: name=file.txt>>."
+    } else ""
+    val planSystemPrompt = if (planningStore != null) when (locale) {
+        "pt" -> "\n\nCrie planos passo a passo com checklist. Use <<PLAN: title=T\u00edtulo;goal=Objetivo;tasks=Tarefa 1|Tarefa 2>>. Marque conclu\u00edda com <<TASK_DONE: descri\u00e7\u00e3o>>. Atualize com <<PLAN_UPDATE: title=...;goal=...;tasks=...>>."
+        "es" -> "\n\nCrea planes paso a paso con checklist. Usa <<PLAN: title=T\u00edtulo;goal=Objetivo;tasks=Tarea 1|Tarea 2>>. Marca completada con <<TASK_DONE: descripci\u00f3n>>."
+        else -> "\n\nCreate step-by-step plans with checklists. Use <<PLAN: title=Title;goal=Goal;tasks=Task 1|Task 2>>. Mark done with <<TASK_DONE: description>>. Update with <<PLAN_UPDATE: title=...;goal=...;tasks=...>>."
+    } else ""
+
+    val finalSystemPrompt = systemPrompt + terminalDisabledPrompt + terminalSystemPrompt + fileAccessDisabledPrompt + fileSystemPrompt + planSystemPrompt + if (hasName) "\n\n" + when (locale) {
         "pt" -> "Nome preferido do usu\u00e1rio: $displayName. Use o nome s\u00f3 quando for natural; n\u00e3o repita em toda resposta."
         "es" -> "Nombre preferido del usuario: $displayName. Usa el nombre solo cuando sea natural; no lo repitas en cada respuesta."
         "ru" -> "\u041f\u0440\u0435\u0434\u043f\u043e\u0447\u0442\u0438\u0442\u0435\u043b\u044c\u043d\u043e\u0435 \u0438\u043c\u044f \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044f: $displayName. \u0418\u0441\u043f\u043e\u043b\u044c\u0437\u0443\u0439 \u0438\u043c\u044f \u0442\u043e\u043b\u044c\u043a\u043e \u043a\u043e\u0433\u0434\u0430 \u044d\u0442\u043e \u0443\u043c\u0435\u0441\u0442\u043d\u043e."
         else -> "User preferred name: $displayName. Use the name only when it feels natural; don't repeat it in every reply."
-    } else systemPrompt
+    } else ""
 
     val greeting = when (locale) {
         "pt" -> if (hasName) "Oi, ${displayName}! Eu sou o Nexus AI. Pode perguntar qualquer coisa." else "Oi! Eu sou o Nexus AI. Pode perguntar qualquer coisa."
@@ -244,11 +296,16 @@ fun ChatScreen(
     val snackFailedTemplate = stringResource(R.string.snack_failed_template)
     val retryAction = stringResource(R.string.snack_retry)
 
-    val vm: ChatViewModel = viewModel(factory = ChatViewModel.factory(store = store, memoryStore = memoryStore, strings = ChatStrings(
-        systemPrompt = finalSystemPrompt, greeting = greeting, interrupted = interrupted,
-        genericError = genericError, assistantErrorTemplate = assistantErrTemplate,
-        snackFailedTemplate = snackFailedTemplate, retryActionLabel = retryAction
-    )))
+    val vm: ChatViewModel = viewModel(factory = ChatViewModel.factory(
+        store = store, memoryStore = memoryStore,
+        planningStore = planningStore, fileTransfer = fileTransfer,
+        terminalSession = terminalSession, prootDistro = prootDistro,
+        strings = ChatStrings(
+            systemPrompt = finalSystemPrompt, greeting = greeting, interrupted = interrupted,
+            genericError = genericError, assistantErrorTemplate = assistantErrTemplate,
+            snackFailedTemplate = snackFailedTemplate, retryActionLabel = retryAction
+        )
+    ))
 
     LaunchedEffect(finalSystemPrompt, greeting, interrupted, genericError, assistantErrTemplate, snackFailedTemplate, retryAction) {
         vm.updateStrings(ChatStrings(systemPrompt = finalSystemPrompt, greeting = greeting, interrupted = interrupted,
@@ -270,6 +327,10 @@ fun ChatScreen(
         runCatching { memoriesEnabled = prefs.getMemoriesEnabled(true) }
         runCatching { memoryAutoSaveEnabled = prefs.getMemoryAutoSaveEnabled(true) }
         runCatching { memories = memoryStore.loadMemories() }
+        runCatching { terminalEnabled = prefs.getAiTerminalEnabled(false) }
+        runCatching { vm.updateTerminalSettings(terminalEnabled) }
+        runCatching { fileAccessEnabled = prefs.getFileAccessEnabled(false) }
+        runCatching { vm.updateFileAccessSettings(fileAccessEnabled) }
     }
 
     val copiedText = stringResource(R.string.snack_copied)
@@ -295,10 +356,17 @@ fun ChatScreen(
 
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
+    var activePlanInline by remember { mutableStateOf<Plan?>(null) }
+
+    LaunchedEffect(uiState.activePlan) {
+        activePlanInline = uiState.activePlan
+    }
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = { NexusTopBar(sending = uiState.sending, navLetter = navLetter, onOpenSettings = { showSettings = true }, onHistory = vm::openHistory, onNewChat = vm::newChat, onStop = vm::stop, scrollBehavior = scrollBehavior, lastTokenUsage = uiState.lastTokenUsage) },
+        topBar = { NexusTopBar(sending = uiState.sending, navLetter = navLetter, onOpenSettings = { showSettings = true }, onHistory = vm::openHistory, onNewChat = vm::newChat, onStop = vm::stop, scrollBehavior = scrollBehavior, lastTokenUsage = uiState.lastTokenUsage,
+            showTerminal = hasTerminal, onTerminal = { showTerminal = true }) },
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             if (voiceMode) VoiceInputBar(state = voiceState, onToggleShowText = voiceController::toggleShowText, onCancel = { voiceMode = false }, onSendText = { t ->
@@ -310,6 +378,24 @@ fun ChatScreen(
         Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(padding)) {
             AnimatedVisibility(visible = uiState.messages.isEmpty()) { EmptySuggestions(onPick = { vm.setInput(it) }) }
             LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (activePlanInline != null && activePlanInline!!.tasks.isNotEmpty()) {
+                    item(key = "active_plan") {
+                        PlanCard(
+                            plan = activePlanInline!!,
+                            onToggleTask = { planId, taskId, newStatus ->
+                                vm.toggleTask(planId, taskId, newStatus)
+                                activePlanInline = activePlanInline?.copy(
+                                    tasks = activePlanInline!!.tasks.map { t ->
+                                        if (t.id == taskId) t.copy(status = newStatus) else t
+                                    }
+                                )
+                            },
+                            onDeletePlan = { vm.deletePlan(it); activePlanInline = null },
+                            onDeleteTask = { planId, taskId -> vm.deleteTask(planId, taskId) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
                 itemsIndexed(uiState.messages, key = { index, msg -> "${uiState.currentChatId}_${index}_${msg.role}" }) { index, msg ->
                     val prevRole = uiState.messages.getOrNull(index - 1)?.role
                     MessageBubble(userLetter = navLetter, userName = displayName, message = msg, showMeta = prevRole != msg.role,
@@ -329,8 +415,11 @@ fun ChatScreen(
     }
 
     if (showSettings) SettingsBottomSheet(userName = userName, languageCode = locale, memoriesEnabled = memoriesEnabled, memoryAutoSaveEnabled = memoryAutoSaveEnabled, memoriesCount = memories.size, lastTokenUsage = uiState.lastTokenUsage, lastModelName = uiState.lastModelName,
+        terminalEnabled = terminalEnabled, fileAccessEnabled = fileAccessEnabled,
         onToggleMemoriesEnabled = { memoriesEnabled = it; uiScope.launch { prefs.setMemoriesEnabled(it) } },
         onToggleMemoryAutoSave = { memoryAutoSaveEnabled = it; uiScope.launch { prefs.setMemoryAutoSaveEnabled(it) } },
+        onToggleTerminal = { terminalEnabled = it; uiScope.launch { prefs.setAiTerminalEnabled(it) }; vm.updateTerminalSettings(it) },
+        onToggleFileAccess = { fileAccessEnabled = it; uiScope.launch { prefs.setFileAccessEnabled(it) }; vm.updateFileAccessSettings(it) },
         onOpenMemoriesManager = { showMemoriesManager = true }, onEditName = { showSettings = false; onEditName() },
         onChangeLanguage = { showSettings = false; onChangeLanguage(it) }, sourceUrl = sourceUrl, onDismiss = { showSettings = false })
 
@@ -338,11 +427,17 @@ fun ChatScreen(
         onAdd = { uiScope.launch { memoryStore.addMemory(it); memories = memoryStore.loadMemories() } },
         onDeleteAt = { uiScope.launch { memoryStore.removeAt(it); memories = memoryStore.loadMemories() } },
         onClearAll = { uiScope.launch { memoryStore.clearAll(); memories = emptyList() } }, onDismiss = { showMemoriesManager = false })
+
+    if (showTerminal) TerminalBottomSheet(
+        session = terminalSession,
+        proot = prootDistro,
+        onDismiss = { showTerminal = false }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun NexusTopBar(sending: Boolean, navLetter: String, onOpenSettings: () -> Unit, onHistory: () -> Unit, onNewChat: () -> Unit, onStop: () -> Unit, scrollBehavior: androidx.compose.material3.TopAppBarScrollBehavior, lastTokenUsage: TokenUsage? = null) {
+private fun NexusTopBar(sending: Boolean, navLetter: String, onOpenSettings: () -> Unit, onHistory: () -> Unit, onNewChat: () -> Unit, onStop: () -> Unit, scrollBehavior: androidx.compose.material3.TopAppBarScrollBehavior, lastTokenUsage: TokenUsage? = null, showTerminal: Boolean = false, onTerminal: (() -> Unit)? = null) {
     CenterAlignedTopAppBar(modifier = Modifier.statusBarsPadding(), scrollBehavior = scrollBehavior, title = {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -354,6 +449,7 @@ private fun NexusTopBar(sending: Boolean, navLetter: String, onOpenSettings: () 
     }, navigationIcon = { Box(modifier = Modifier.padding(start = 8.dp)) { BrandDot(letter = navLetter, onClick = onOpenSettings) } },
         actions = { Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
             FilledTonalIconButton(onClick = onHistory) { Icon(Icons.Filled.History, contentDescription = stringResource(R.string.action_history)) }
+            if (showTerminal) FilledTonalIconButton(onClick = { onTerminal?.invoke() }) { Icon(Icons.Filled.Code, contentDescription = stringResource(R.string.action_terminal)) }
             FilledTonalIconButton(onClick = onNewChat) { Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.action_new_chat)) }
             AnimatedVisibility(visible = sending) { FilledTonalIconButton(onClick = onStop, colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer)) { Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.action_stop)) } }
             Spacer(Modifier.width(4.dp))
@@ -577,7 +673,7 @@ private fun HistoryBottomSheet(chats: List<StoredChat>, currentChatId: String, o
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SettingsBottomSheet(userName: String, languageCode: String, memoriesEnabled: Boolean, memoryAutoSaveEnabled: Boolean, memoriesCount: Int, lastTokenUsage: TokenUsage?, lastModelName: String?, onToggleMemoriesEnabled: (Boolean) -> Unit, onToggleMemoryAutoSave: (Boolean) -> Unit, onOpenMemoriesManager: () -> Unit, onEditName: () -> Unit, onChangeLanguage: (String) -> Unit, sourceUrl: String, onDismiss: () -> Unit) {
+private fun SettingsBottomSheet(userName: String, languageCode: String, memoriesEnabled: Boolean, memoryAutoSaveEnabled: Boolean, memoriesCount: Int, lastTokenUsage: TokenUsage?, lastModelName: String?, terminalEnabled: Boolean, fileAccessEnabled: Boolean, onToggleMemoriesEnabled: (Boolean) -> Unit, onToggleMemoryAutoSave: (Boolean) -> Unit, onToggleTerminal: (Boolean) -> Unit, onToggleFileAccess: (Boolean) -> Unit, onOpenMemoriesManager: () -> Unit, onEditName: () -> Unit, onChangeLanguage: (String) -> Unit, sourceUrl: String, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     LaunchedEffect(Unit) { sheetState.show() }
@@ -603,6 +699,9 @@ private fun SettingsBottomSheet(userName: String, languageCode: String, memories
             PillListItem(headline = stringResource(R.string.settings_memories_title), supporting = if (memoriesCount > 0) stringResource(R.string.memories_count_template, memoriesCount) else stringResource(R.string.memories_empty_short), trailing = { Switch(checked = memoriesEnabled, onCheckedChange = onToggleMemoriesEnabled) }, onClick = { onToggleMemoriesEnabled(!memoriesEnabled) })
             PillListItem(headline = stringResource(R.string.settings_memories_auto_save), supporting = stringResource(R.string.settings_memories_auto_save_desc), trailing = { Switch(checked = memoryAutoSaveEnabled, onCheckedChange = onToggleMemoryAutoSave, enabled = memoriesEnabled) }, onClick = { if (memoriesEnabled) onToggleMemoryAutoSave(!memoryAutoSaveEnabled) })
             PillListItem(headline = stringResource(R.string.settings_memories_manage), supporting = stringResource(R.string.settings_memories_manage_desc), onClick = { closeSettingsThen(onOpenMemoriesManager) })
+            HorizontalDivider()
+            PillListItem(headline = stringResource(R.string.settings_terminal_title), supporting = stringResource(R.string.settings_terminal_desc), trailing = { Switch(checked = terminalEnabled, onCheckedChange = onToggleTerminal) }, onClick = { onToggleTerminal(!terminalEnabled) })
+            PillListItem(headline = stringResource(R.string.settings_file_access_title), supporting = stringResource(R.string.settings_file_access_desc), trailing = { Switch(checked = fileAccessEnabled, onCheckedChange = onToggleFileAccess) }, onClick = { onToggleFileAccess(!fileAccessEnabled) })
             if (lastTokenUsage != null || lastModelName != null) {
                 HorizontalDivider()
                 if (lastModelName != null) PillListItem(headline = "Model", supporting = lastModelName)
@@ -702,6 +801,36 @@ private fun LanguagePillOption(title: String, selected: Boolean, onClick: () -> 
             Icon(imageVector = Icons.Filled.Language, contentDescription = null, tint = fg)
             Text(text = title, style = MaterialTheme.typography.bodyLarge, color = fg, modifier = Modifier.weight(1f))
             if (selected) Icon(imageVector = Icons.Filled.Check, contentDescription = null, tint = fg)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TerminalBottomSheet(
+    session: TerminalSession?,
+    proot: ProotDistro?,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    LaunchedEffect(Unit) { sheetState.show() }
+    val scope = rememberCoroutineScope()
+    fun close() { scope.launch { runCatching { sheetState.hide() }; onDismiss() } }
+
+    ModalBottomSheet(
+        onDismissRequest = { close() },
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding().heightIn(min = 300.dp, max = 500.dp)) {
+            if (session != null) {
+                TerminalPanel(session = session, proot = proot)
+            } else {
+                Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                    Text("Terminal not available")
+                }
+            }
         }
     }
 }

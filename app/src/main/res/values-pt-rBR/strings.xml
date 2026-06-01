@@ -85,5 +85,33 @@
     <string name="prompt_summarize">Resuma este texto:</string>
     <string name="prompt_surprise">Me surpreenda com algo legal.</string>
     <string name="prompt_help_write">Me ajude a escrever:</string>
-    
+
+    <string name="action_terminal">Terminal</string>
+    <string name="action_planning">Planos</string>
+
+    <string name="settings_terminal_title">Terminal da IA</string>
+    <string name="settings_terminal_desc">Permitir a IA executar comandos no terminal</string>
+    <string name="settings_file_access_title">Acesso a Arquivos</string>
+    <string name="settings_file_access_desc">Permitir a IA criar e compartilhar arquivos</string>
+
+    <string name="planning_title">Planos e Tarefas</string>
+    <string name="planning_create">Novo plano</string>
+    <string name="planning_no_active">Nenhum plano ativo. Peça para a IA criar um plano passo a passo.</string>
+    <string name="planning_completed">%1$d/%2$d concluídas</string>
+    <string name="planning_create_title">Novo Plano</string>
+    <string name="planning_create_goal">Objetivo (opcional)</string>
+    <string name="planning_create_confirm">Criar</string>
+
+    <string name="terminal_start">Iniciar Terminal</string>
+    <string name="terminal_stop">Parar Terminal</string>
+    <string name="terminal_clear">Limpar</string>
+    <string name="terminal_stopped">Terminal parado. Pressione Play para iniciar.</string>
+    <string name="terminal_proot_install">Instalar Ubuntu (proot-distro)</string>
+    <string name="terminal_proot_uninstall">Desinstalar Ubuntu</string>
+    <string name="terminal_proot_ready">Ubuntu proot-distro pronto</string>
+
+    <string name="file_saved">Arquivo salvo</string>
+    <string name="file_shared">Arquivo compartilhado</string>
+    <string name="file_access_denied">Acesso a arquivos está desativado nas configurações</string>
+
 </resources>
