@@ -3,6 +3,11 @@ package com.llucs.nexusai
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.llucs.nexusai.agent.AgentSession
+import com.llucs.nexusai.agent.AgentStep
+import com.llucs.nexusai.agent.AgentAction
+import com.llucs.nexusai.agent.ToolRegistry
+import com.llucs.nexusai.agent.ToolResult
 import com.llucs.nexusai.data.ChatStore
 import com.llucs.nexusai.data.MemoryStore
 import com.llucs.nexusai.data.StoredChat
@@ -21,8 +26,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.runBlocking
 import java.util.Locale
 import java.util.UUID
 
@@ -51,7 +54,6 @@ class ChatViewModel(
         "<<\\s*PLAN\\s*:\\s*title=(.+?);goal=(.*?);tasks=(.+?)\\s*>>",
         RegexOption.DOT_MATCHES_ALL
     )
-    private val taskChecklistLine = Regex("^[-*]\\s*\\[([ xX])\\]\\s*(.+)")
     private val fileSendRequest = Regex(
         "<<\\s*FILE_SEND\\s*:\\s*name=(.+?);content=(.*?)\\s*>>",
         RegexOption.DOT_MATCHES_ALL
@@ -65,6 +67,15 @@ class ChatViewModel(
         "<<\\s*PLAN_UPDATE\\s*:\\s*title=(.+?);goal=(.*?);tasks=(.+?)\\s*>>",
         RegexOption.DOT_MATCHES_ALL
     )
+    private val fileShareRegex = Regex("<<\\s*FILE_SHARE\\s*:\\s*name=(.+?)\\s*>>")
+
+    private val toolRegistry = terminalSession?.let { session ->
+        prootDistro?.let { distro ->
+            ToolRegistry(session, distro)
+        }
+    }
+
+    private val agentSession = toolRegistry?.let { AgentSession(it) }
 
     fun updateMemorySettings(memoriesEnabled: Boolean, autoSaveEnabled: Boolean) {
         this.memoriesEnabled = memoriesEnabled
@@ -95,16 +106,26 @@ class ChatViewModel(
     suspend fun executeAiCommand(command: String): String {
         if (!aiTerminalEnabled) return "Terminal access disabled"
         if (terminalSession == null) return "Terminal not available"
-        if (!terminalSession!!.isRunning) {
-            val started = terminalSession!!.start()
-            if (!started) return "Failed to start terminal"
-        }
+
         return try {
-            val prootReady = prootDistro != null && prootDistro.ensureInstalled() == ProotStatus.READY
-            if (prootReady) {
-                prootDistro!!.executeCommand(command)
+            if (prootDistro != null) {
+                val status = prootDistro.ensureInstalled()
+                if (status == ProotStatus.READY) {
+                    val result = prootDistro.executeCommand(command)
+                    if (result.isNotBlank()) result else "(command completed with no output)"
+                } else {
+                    if (!terminalSession.isRunning) {
+                        val started = terminalSession.start()
+                        if (!started) return "Failed to start terminal"
+                    }
+                    terminalSession.executeCommand(command)
+                }
             } else {
-                terminalSession!!.executeCommand(command)
+                if (!terminalSession.isRunning) {
+                    val started = terminalSession.start()
+                    if (!started) return "Failed to start terminal"
+                }
+                terminalSession.executeCommand(command)
             }
         } catch (e: Exception) {
             "Command error: ${e.message}"
@@ -180,8 +201,7 @@ class ChatViewModel(
                 replacements.add(m.range.first to (m.range.last - m.range.first + 1) to result)
             }
 
-            val shareRegex = Regex("<<\\s*FILE_SHARE\\s*:\\s*name=(.+?)\\s*>>")
-            for (m in shareRegex.findAll(content)) {
+            for (m in fileShareRegex.findAll(content)) {
                 val name = m.groupValues[1].trim()
                 val files = fileTransfer.listGeneratedFiles()
                 val file = files.firstOrNull { it.name == name }
@@ -196,22 +216,39 @@ class ChatViewModel(
         }
 
         if (aiTerminalEnabled && terminalSession != null) {
-            val terminalCache = mutableMapOf<String, String>()
+            val seen = mutableSetOf<String>()
             for (m in terminalExecRequest.findAll(content)) {
                 val cmd = m.groupValues[1].trim().replace("\\n", "\n")
-                val timeout = m.groupValues[2].toLongOrNull() ?: 30000
+                val timeout = m.groupValues[2].toLongOrNull() ?: 60000
                 val key = "$cmd|$timeout"
-                val result = terminalCache.getOrPut(key) {
-                    try {
-                        val prootReady = prootDistro != null && prootDistro.ensureInstalled() == ProotStatus.READY
-                        if (prootReady) {
-                            prootDistro!!.executeCommand(cmd)
+                if (!seen.add(key)) continue
+
+                val result = try {
+                    if (prootDistro != null) {
+                        val status = prootDistro.ensureInstalled()
+                        if (status == ProotStatus.READY) {
+                            val r = prootDistro.executeCommand(cmd)
+                            if (r.isBlank()) "(no output)" else r
+                        } else {
+                            if (!terminalSession.isRunning) {
+                                val started = terminalSession.start()
+                                if (!started) "Failed to start terminal"
+                                else terminalSession.executeCommand(cmd, timeout)
+                            } else {
+                                terminalSession.executeCommand(cmd, timeout)
+                            }
+                        }
+                    } else {
+                        if (!terminalSession.isRunning) {
+                            val started = terminalSession.start()
+                            if (!started) "Failed to start terminal"
+                            else terminalSession.executeCommand(cmd, timeout)
                         } else {
                             terminalSession.executeCommand(cmd, timeout)
                         }
-                    } catch (e: Exception) {
-                        "Command error: ${e.message}"
                     }
+                } catch (e: Exception) {
+                    "Command error: ${e.message}"
                 }
                 replacements.add(m.range.first to (m.range.last - m.range.first + 1) to "\n$result")
             }
@@ -289,7 +326,7 @@ class ChatViewModel(
             .find(t)?.let { m ->
                 val age = m.groupValues.getOrNull(2).orEmpty()
                 age.toIntOrNull()?.let { a ->
-                    if (a in 3..120) out.add("O usuário tem $a anos.")
+                    if (a in 3..120) out.add("O usu\u00e1rio tem $a anos.")
                 }
             }
 
@@ -363,7 +400,7 @@ class ChatViewModel(
         _state.value = _state.value.copy(
             currentChatId = id, messages = listOf(greetingMessage()),
             input = "", sending = false, historyOpen = false,
-            lastTokenUsage = null, lastModelName = null
+            lastTokenUsage = null, lastModelName = null, agentSteps = emptyList()
         )
         viewModelScope.launch { store.upsertChat(toStoredChat(_state.value)); refreshChats() }
     }
@@ -375,7 +412,7 @@ class ChatViewModel(
         _state.value = _state.value.copy(
             currentChatId = chat.id,
             messages = if (ui.isNotEmpty()) ui else listOf(greetingMessage()),
-            historyOpen = false, input = "", sending = false
+            historyOpen = false, input = "", sending = false, agentSteps = emptyList()
         )
     }
 
@@ -396,7 +433,7 @@ class ChatViewModel(
             _state.value = _state.value.copy(
                 chats = emptyList(), currentChatId = id, messages = listOf(greetingMessage()),
                 input = "", sending = false, historyOpen = false,
-                lastTokenUsage = null, lastModelName = null
+                lastTokenUsage = null, lastModelName = null, agentSteps = emptyList()
             )
             store.upsertChat(toStoredChat(_state.value))
             refreshChats()
@@ -435,7 +472,7 @@ class ChatViewModel(
 
         val visible = currentMessages + UiMessage("user", text) + UiMessage("assistant", "", isThinking = true)
 
-        _state.value = _state.value.copy(messages = visible, input = "", sending = true)
+        _state.value = _state.value.copy(messages = visible, input = "", sending = true, agentSteps = emptyList())
 
         if (memoriesEnabled && memoryAutoSaveEnabled && memoryStore != null) {
             val extractedFromUser = extractPersonalMemoriesFromUser(text)
@@ -450,7 +487,13 @@ class ChatViewModel(
 
         runningJob = viewModelScope.launch {
             try {
-                val response = client.complete(baseMessages.map { UiMessage(it.role, it.content) })
+                val agentCtx = agentSession?.getContext() ?: ""
+                val messagesWithContext = baseMessages.toMutableList()
+                if (agentCtx.isNotBlank()) {
+                    messagesWithContext.add(UiMessage("system", "Agent context:\n$agentCtx"))
+                }
+
+                val response = client.complete(messagesWithContext.map { UiMessage(it.role, it.content) })
                 val cmdProcessed = handleAiCommands(response.content)
                 val (cleaned, extracted) = stripMemoryCommands(cmdProcessed)
                 var savedNote: String? = null
@@ -465,8 +508,8 @@ class ChatViewModel(
                     .flatMap { it.split(" • ").map(String::trim).filter(String::isNotBlank) }
                     .distinctBy { it.lowercase() }.takeIf { it.isNotEmpty() }?.joinToString(" • ")
 
-                replaceAssistantAt(chatId, assistantIndex, cleaned, memorySaved = combinedNote, tokenUsage = response.usage, modelName = response.modelName)
-                _state.value = _state.value.copy(sending = false, lastTokenUsage = response.usage, lastModelName = response.modelName)
+                replaceAssistantAt(chatId, assistantIndex, cleaned, memorySaved = combinedNote, tokenUsage = response.usage, modelName = response.modelName, agentSteps = agentSession?.getSteps())
+                _state.value = _state.value.copy(sending = false, lastTokenUsage = response.usage, lastModelName = response.modelName, agentSteps = agentSession?.getSteps() ?: emptyList())
 
                 if (!combinedNote.isNullOrBlank()) scheduleClearMemorySaved(chatId, assistantIndex, combinedNote)
                 persist()
@@ -513,12 +556,12 @@ class ChatViewModel(
         }
     }
 
-    private fun replaceAssistantAt(chatId: String, index: Int, content: String, memorySaved: String? = null, tokenUsage: TokenUsage? = null, modelName: String? = null, isThinking: Boolean = false) {
+    private fun replaceAssistantAt(chatId: String, index: Int, content: String, memorySaved: String? = null, tokenUsage: TokenUsage? = null, modelName: String? = null, isThinking: Boolean = false, agentSteps: List<AgentStep>? = null) {
         if (_state.value.currentChatId != chatId) return
         val updated = _state.value.messages.toMutableList()
         if (index < 0 || index >= updated.size) return
         if (updated[index].role != "assistant") return
-        updated[index] = UiMessage(role = "assistant", content = content, isThinking = isThinking, memorySaved = memorySaved, tokenUsage = tokenUsage, modelName = modelName)
+        updated[index] = UiMessage(role = "assistant", content = content, isThinking = isThinking, memorySaved = memorySaved, tokenUsage = tokenUsage, modelName = modelName, agentSteps = agentSteps)
         _state.value = _state.value.copy(messages = updated)
     }
 

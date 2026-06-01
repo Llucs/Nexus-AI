@@ -87,8 +87,13 @@ class MainActivity : ComponentActivity() {
                 val memoryStore = remember { MemoryStore(context.applicationContext) }
                 val planningStore = remember { PlanningStore(context.applicationContext) }
                 val fileTransfer = remember { FileTransfer(context.applicationContext) }
-                val terminalSession = remember { TerminalSession() }
                 val prootDistro = remember { ProotDistro(context.applicationContext) }
+                val terminalSession = remember {
+                    TerminalSession(
+                        prootBin = prootDistro.prootBin.absolutePath,
+                        rootfsDir = prootDistro.rootfsDir.absolutePath
+                    )
+                }
 
                 var prefsLoaded by remember { mutableStateOf(false) }
                 var userName by rememberSaveable { mutableStateOf("") }

@@ -21,9 +21,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -76,7 +73,7 @@ fun TerminalPanel(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Nexus Terminal",
+                text = "Ubuntu Terminal",
                 color = terminalTextColor,
                 fontFamily = FontFamily.Monospace,
                 fontSize = 12.sp,

@@ -1,12 +1,17 @@
 package com.llucs.nexusai
 
+import com.llucs.nexusai.agent.AgentStep
+import com.llucs.nexusai.data.StoredChat
+import com.llucs.nexusai.planning.Plan
+
 data class UiMessage(
     val role: String,
     val content: String,
     val isThinking: Boolean = false,
     val memorySaved: String? = null,
     val tokenUsage: TokenUsage? = null,
-    val modelName: String? = null
+    val modelName: String? = null,
+    val agentSteps: List<AgentStep>? = null
 )
 
 data class TokenUsage(
@@ -31,7 +36,7 @@ data class SnackbarEvent(
 )
 
 data class ChatUiState(
-    val chats: List<com.llucs.nexusai.data.StoredChat> = emptyList(),
+    val chats: List<StoredChat> = emptyList(),
     val currentChatId: String = "",
     val messages: List<UiMessage> = emptyList(),
     val input: String = "",
@@ -44,8 +49,10 @@ data class ChatUiState(
     val terminalEnabled: Boolean = false,
     val prootInstalling: Boolean = false,
     val planningOpen: Boolean = false,
-    val activePlan: com.llucs.nexusai.planning.Plan? = null,
-    val generatedFilesCount: Int = 0
+    val activePlan: Plan? = null,
+    val generatedFilesCount: Int = 0,
+    val agentMode: Boolean = false,
+    val agentSteps: List<AgentStep> = emptyList()
 )
 
 data class ChatStrings(
@@ -67,7 +74,7 @@ data class AiFileRequest(
 
 data class AiTerminalCommand(
     val command: String,
-    val timeoutMs: Long = 30000,
+    val timeoutMs: Long = 60000,
     val useProot: Boolean = false
 )
 

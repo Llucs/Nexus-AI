@@ -27,9 +27,9 @@ class ProotDistro(private val context: Context) {
     private val _state = MutableStateFlow(ProotState())
     val state: Flow<ProotState> = _state.asStateFlow()
 
-    private val baseDir: File get() = File(context.filesDir, "nexus-proot")
-    private val prootBin: File get() = File(baseDir, "proot")
-    private val rootfsDir: File get() = File(baseDir, "rootfs")
+    val baseDir: File get() = File(context.filesDir, "nexus-proot")
+    val prootBin: File get() = File(baseDir, "proot")
+    val rootfsDir: File get() = File(baseDir, "rootfs")
     private val markerFile: File get() = File(baseDir, ".installed")
 
     suspend fun checkStatus(): ProotStatus = withContext(Dispatchers.IO) {
@@ -61,7 +61,12 @@ class ProotDistro(private val context: Context) {
             onOutput?.invoke("Downloading proot binary...")
             val debUrl = "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.107.72_$prootArch.deb"
             val debFile = File(baseDir, "proot.deb")
-            downloadFile(debUrl, debFile)
+            try {
+                downloadFile(debUrl, debFile)
+            } catch (e: Exception) {
+                val altUrl = "https://github.com/termux/proot/releases/download/v5.1.107.72/proot-$prootArch"
+                downloadFile(altUrl, debFile)
+            }
             extractProotFromDeb(debFile, prootBin)
             debFile.delete()
             prootBin.setExecutable(true)
@@ -71,6 +76,7 @@ class ProotDistro(private val context: Context) {
 
             val ubuntuArch = when (prootArch) {
                 "i686" -> "x86_64"
+                "arm" -> "armhf"
                 else -> prootArch
             }
             val rootfsUrl = "https://github.com/termux/proot-distro/releases/download/v4.29.0/ubuntu-plucky-$ubuntuArch-pd-v4.29.0.tar.xz"
@@ -87,6 +93,10 @@ class ProotDistro(private val context: Context) {
             val resolvConf = File(rootfsDir, "etc/resolv.conf")
             resolvConf.parentFile?.mkdirs()
             resolvConf.writeText("nameserver 8.8.8.8\nnameserver 8.8.4.4\n")
+            File(rootfsDir, "etc/hosts").writeText("127.0.0.1 localhost\n::1 localhost\n")
+
+            val fstab = File(rootfsDir, "etc/fstab")
+            if (!fstab.exists()) fstab.writeText("# Android fstab - not used\n")
 
             markerFile.createNewFile()
             _state.value = ProotState(ProotStatus.READY, 1f, "Ubuntu ready")
@@ -106,12 +116,18 @@ class ProotDistro(private val context: Context) {
         try {
             val pb = ProcessBuilder(
                 prootBin.absolutePath,
-                "--rootfs=$rootfsDir",
                 "--link2symlink",
-                "-w", "/root",
+                "-0",
+                "-r", rootfsDir.absolutePath,
                 "-b", "/dev",
                 "-b", "/proc",
                 "-b", "/sys",
+                "-w", "/root",
+                "/usr/bin/env",
+                "-i",
+                "HOME=/root",
+                "TERM=xterm-256color",
+                "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
                 "/bin/bash", "-c", command
             )
             pb.environment()["HOME"] = "/root"
@@ -120,14 +136,19 @@ class ProotDistro(private val context: Context) {
             val p = pb.start()
             val stdout = p.inputStream.bufferedReader().readText()
             val stderr = p.errorStream.bufferedReader().readText()
-            p.waitFor(30, java.util.concurrent.TimeUnit.SECONDS)
+            p.waitFor(60, java.util.concurrent.TimeUnit.SECONDS)
+            val exitCode = p.exitValue()
             buildString {
                 if (stdout.isNotBlank()) append(stdout)
                 if (stderr.isNotBlank()) {
                     if (isNotEmpty()) append("\n")
                     append(stderr)
                 }
-            }.ifBlank { "(no output)" }
+                if (exitCode != 0) {
+                    if (isNotEmpty()) append("\n")
+                    append("(exit code: $exitCode)")
+                }
+            }.ifBlank { if (exitCode == 0) "" else "(exit code: $exitCode)" }
         } catch (e: Exception) {
             "Command error: ${e.message}"
         }
@@ -137,9 +158,7 @@ class ProotDistro(private val context: Context) {
         val status = checkStatus()
         if (status == ProotStatus.READY) return@withContext ProotStatus.READY
         val ok = install(onOutput)
-        if (ok) ProotStatus.READY else {
-            _state.value.status
-        }
+        if (ok) ProotStatus.READY else _state.value.status
     }
 
     private fun extractProotFromDeb(debFile: File, outputFile: File) {
@@ -194,7 +213,7 @@ class ProotDistro(private val context: Context) {
         val url = URL(urlStr)
         val conn = url.openConnection()
         conn.connectTimeout = 15000
-        conn.readTimeout = 30000
+        conn.readTimeout = 60000
         val totalBytes = conn.contentLengthLong
         val input = conn.getInputStream()
         val output = FileOutputStream(target)
